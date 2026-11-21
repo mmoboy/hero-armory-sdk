@@ -3,7 +3,7 @@ package vanilla
 import (
 	"strings"
 
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 type setVisual struct {

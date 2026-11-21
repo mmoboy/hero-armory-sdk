@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	sdk "hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 	"realm_bounty/proto"
 )
 

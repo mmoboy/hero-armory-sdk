@@ -3,7 +3,7 @@ package vanilla
 import (
 	"fmt"
 
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 // Skills returns the 3 classic Sanctuary tactical player combat skills.

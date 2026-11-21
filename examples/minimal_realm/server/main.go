@@ -1,7 +1,7 @@
 package main
 
 import (
-	sdk "hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 // minimalRealmPlugin boots an empty-shell realm with nothing except a single

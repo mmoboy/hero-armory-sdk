@@ -3,7 +3,7 @@ package vanilla
 import (
 	"fmt"
 
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 func npcGearWithWeapon(base map[string]string, weaponID string) map[string]string {

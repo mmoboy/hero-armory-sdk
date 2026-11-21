@@ -1,7 +1,7 @@
 package main
 
 import (
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 type standardClientPlugin struct {

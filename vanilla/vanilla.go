@@ -4,7 +4,7 @@
 package vanilla
 
 import (
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 // RegisterAll registers the full Sanctuary world: 25 rooms, all items & starter

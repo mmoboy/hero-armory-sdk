@@ -16,7 +16,7 @@ import (
 	"sort"
 	"strings"
 
-	sdk "hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 func main() {

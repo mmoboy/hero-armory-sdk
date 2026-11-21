@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"math"
 
-	sdk "hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 type meshBuilder struct {

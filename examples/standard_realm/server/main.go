@@ -1,8 +1,8 @@
 package main
 
 import (
-	"hero-armory-sdk"
-	"hero-armory-sdk/vanilla"
+	sdk "github.com/mmoboy/hero-armory-sdk"
+	"github.com/mmoboy/hero-armory-sdk/vanilla"
 )
 
 type standardRealmPlugin struct {

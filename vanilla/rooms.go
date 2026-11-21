@@ -3,7 +3,7 @@ package vanilla
 import (
 	"fmt"
 
-	"hero-armory-sdk"
+	sdk "github.com/mmoboy/hero-armory-sdk"
 )
 
 func gridPortals(x, y int) []sdk.RoomPortalSpec {

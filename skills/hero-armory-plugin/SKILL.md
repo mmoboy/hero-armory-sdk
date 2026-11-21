@@ -13,7 +13,7 @@ Use this skill whenever the user asks to create, scaffold, modify, debug, compil
 
 When the user asks you to create a plugin (for example: `"Create a Hero Armory plugin that..."`), execute **every step end-to-end** without stopping early:
 
-1. **Locate `hero-armory-sdk`**: Check for `sdk/hero-armory-sdk` in the workspace (or ask only if it cannot be found).
+1. **Locate `hero-armory-sdk`**: For standalone GitHub repositories, use `go get github.com/mmoboy/hero-armory-sdk@latest` (and `.github/workflows/release.yml` via `github.com/mmoboy/hero-armory-plugin-example`). Inside the `AlphaBox` monorepo, use `sdk/hero-armory-sdk` via a temporary `replace` or `build.sh` `go.work`.
 2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), and `build.sh` (`chmod +x`).
 3. **Use safe icons/assets**: If the user did not supply a custom `.png` icon, use a built-in atlas icon name (such as `"star"`, `"shield"`, `"sword"`, `"book"`, `"compass"`) in `HUDActionSpec.Icon` and omit `icon` in `manifest.json` (or generate a valid PNG if requested).
 4. **Implement `proto/`, `server/`, and `client/`** following all rules in Sections 1-5 below.
@@ -63,17 +63,21 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
 
 ### `go.mod`
 
+For a standalone public GitHub plugin repository (required for Source-Verified GitHub Actions releases):
+
 ```go
-module my_plugin
+module github.com/<owner>/<my-plugin>
 
 go 1.24
 
-require hero-armory-sdk v0.0.0
-
-replace hero-armory-sdk => ../../sdk/hero-armory-sdk
+require github.com/mmoboy/hero-armory-sdk v1.0.0
 ```
 
-Adjust the relative `replace` path to match where `<plugin-dir>` sits relative to `sdk/hero-armory-sdk`.
+When developing offline inside the `AlphaBox` monorepo (not committed to a Source-Verified GitHub release repo), temporarily point at local `sdk/hero-armory-sdk`:
+
+```go
+replace github.com/mmoboy/hero-armory-sdk => ../../sdk/hero-armory-sdk
+```
 
 ### `manifest.json`
 
@@ -129,7 +133,7 @@ ls -lh "$DIR/dist/server_plugin.wasm" "$DIR/dist/client_plugin.gtpack"
 
 ## 3. Server Plugin API (`RoleServer`)
 
-`hero-armory-server` starts as an empty shell (loading the embedded `standard_realm` bundle only when no external plugin is configured). Inside `Init()`, a server plugin can either define a custom world from scratch (`examples/minimal_realm`) or import `"hero-armory-sdk/vanilla"` and call `vanilla.RegisterAll()` + `vanilla.HandleNPCInteract(ev)` (`examples/standard_realm`) before adding custom content.
+`hero-armory-server` starts as an empty shell (loading the embedded `standard_realm` bundle only when no external plugin is configured). Inside `Init()`, a server plugin can either define a custom world from scratch (`examples/minimal_realm`) or import `"github.com/mmoboy/hero-armory-sdk/vanilla"` and call `vanilla.RegisterAll()` + `vanilla.HandleNPCInteract(ev)` (`examples/standard_realm`) before adding custom content.
 
 Embed `sdk.BaseServerPlugin` and implement only the hooks needed:
 
@@ -251,4 +255,27 @@ Option D -- Bundled dev launcher (for workspace examples):
 ./apps/hero-armory/scripts/run_realm.sh <standard_realm|realm_bounty|minimal_realm> -id realm-1
 ```
 
-For working references, inspect `sdk/hero-armory-sdk/vanilla` alongside `sdk/hero-armory-sdk/examples/realm_bounty`, `sdk/hero-armory-sdk/examples/standard_realm`, and `sdk/hero-armory-sdk/examples/minimal_realm`.
+Option E -- Publish to the public Plugin Library (`https://kmmo.enlumis.com/plugins`, Recommended):
+
+Add `.github/workflows/release.yml` in your public GitHub plugin repo (no `replace` directives in `go.mod`):
+
+```yaml
+name: Release Plugin
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    permissions:
+      id-token: write
+      attestations: write
+      contents: write
+    uses: mmoboy/hero-armory-sdk/.github/workflows/build-plugin.yml@v1
+```
+
+Push a matching tag (for example `v1.0.0` for `"version": "1.0.0"` in `manifest.json`), wait for GitHub Actions to build and attest `server_plugin.wasm` + `client_plugin.gtpack` for free, then submit the repo URL + tag at `https://kmmo.enlumis.com/plugins` for a **Source-Verified** catalog entry selectable directly inside the Hero Armory desktop client.
+
+For working references, inspect `sdk/hero-armory-plugin-example` (`github.com/mmoboy/hero-armory-plugin-example`) and `sdk/hero-armory-sdk/vanilla` alongside `sdk/hero-armory-sdk/examples/{realm_bounty,standard_realm,minimal_realm}`.

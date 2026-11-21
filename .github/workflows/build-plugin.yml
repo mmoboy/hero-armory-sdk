@@ -1,0 +1,191 @@
+name: Build and Attest Hero Armory Plugin
+
+on:
+  workflow_call:
+    inputs:
+      go_version:
+        description: "Go toolchain version for building wasip1/wasm plugins"
+        required: false
+        type: string
+        default: "1.24.x"
+
+jobs:
+  build-and-attest:
+    name: Build Wasm Plugin & Attest Provenance
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      attestations: write
+      contents: write
+
+    steps:
+      - name: Checkout plugin source at exact commit
+        uses: actions/checkout@v4
+        with:
+          path: plugin
+          persist-credentials: false
+
+      - name: Resolve SDK workflow ref
+        id: sdk_ref
+        shell: bash
+        run: |
+          # github.workflow_ref looks like:
+          #   mmoboy/hero-armory-sdk/.github/workflows/build-plugin.yml@refs/tags/v1
+          raw_ref="${{ github.workflow_ref }}"
+          ref="${raw_ref##*@}"
+          ref="${ref#refs/tags/}"
+          ref="${ref#refs/heads/}"
+          if [[ -z "$ref" ]]; then
+            ref="main"
+          fi
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout official hero-armory-sdk
+        uses: actions/checkout@v4
+        with:
+          repository: mmoboy/hero-armory-sdk
+          ref: ${{ steps.sdk_ref.outputs.ref }}
+          path: sdk
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ inputs.go_version }}
+
+      - name: Verify clean checkout, go.mod policy, and manifest
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd plugin
+          if [[ -n "$(git status --porcelain)" ]]; then
+            echo "Dirty working tree detected before build" >&2
+            exit 1
+          fi
+          if [[ ! -f go.mod || ! -f manifest.json ]]; then
+            echo "Plugin repository root must contain go.mod and manifest.json" >&2
+            exit 1
+          fi
+          if [[ ! -d server || ! -d client ]]; then
+            echo "Plugin repository root must contain ./server and ./client Go packages" >&2
+            exit 1
+          fi
+
+          # Disallow go.mod replace directives so builds strictly use immutable published modules.
+          python3 - <<'PY'
+          import json, re, subprocess, sys
+
+          gm = json.loads(subprocess.check_output(["go", "mod", "edit", "-json"]).decode("utf-8"))
+          if gm.get("Replace"):
+              sys.stderr.write("Verified plugin builds must not contain go.mod replace directives\n")
+              sys.exit(1)
+          reqs = [r.get("Path", "") for r in (gm.get("Require") or [])]
+          if "github.com/mmoboy/hero-armory-sdk" not in reqs:
+              sys.stderr.write("go.mod must require github.com/mmoboy/hero-armory-sdk\n")
+              sys.exit(1)
+
+          with open("manifest.json", "r", encoding="ascii") as f:
+              man = json.load(f)
+          pid = str(man.get("id", "")).strip()
+          ver = str(man.get("version", "")).strip()
+          if not re.fullmatch(r"[a-z0-9_-]{3,40}", pid):
+              sys.stderr.write(f"Invalid manifest id: {pid!r}\n")
+              sys.exit(1)
+          if not ver or len(ver) > 24:
+              sys.stderr.write(f"Invalid manifest version: {ver!r}\n")
+              sys.exit(1)
+          if int(man.get("sdk_version", 1)) != 1:
+              sys.stderr.write(f"Unsupported sdk_version: {man.get('sdk_version')!r}\n")
+              sys.exit(1)
+          PY
+
+          plugin_id="$(python3 -c 'import json; print(json.load(open("manifest.json"))["id"].strip())')"
+          man_ver="$(python3 -c 'import json; print(json.load(open("manifest.json"))["version"].strip())')"
+          tag_name="${GITHUB_REF_NAME}"
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            norm_tag="${tag_name#v}"
+            if [[ "$norm_tag" != "$man_ver" ]]; then
+              echo "Git tag '$tag_name' does not match manifest.json version '$man_ver'" >&2
+              exit 1
+            fi
+          fi
+          echo "plugin_id=$plugin_id" >> "$GITHUB_OUTPUT"
+          echo "version=$man_ver" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag_name" >> "$GITHUB_OUTPUT"
+
+      - name: Compile server_plugin.wasm and client_plugin.gtpack
+        shell: bash
+        run: |
+          set -euo pipefail
+          WORK_ROOT="$(pwd)"
+          DIST="$WORK_ROOT/_dist"
+          STAGE="$WORK_ROOT/_stage"
+          rm -rf "$DIST" "$STAGE"
+          mkdir -p "$DIST" "$STAGE"
+
+          cd "$WORK_ROOT/plugin"
+          GOWORK=off GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
+            go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
+            -o "$DIST/server_plugin.wasm" ./server
+
+          GOWORK=off GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
+            go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
+            -o "$STAGE/client.wasm" ./client
+
+          cp "$WORK_ROOT/plugin/manifest.json" "$STAGE/manifest.json"
+          if [[ -d "$WORK_ROOT/plugin/assets" ]]; then
+            cp -r "$WORK_ROOT/plugin/assets" "$STAGE/assets"
+          fi
+
+          (
+            cd "$WORK_ROOT/sdk"
+            GOWORK=off go run ./cmd/pack -dir "$STAGE" -out "$DIST/client_plugin.gtpack"
+          )
+
+          zip_name="${{ steps.meta.outputs.plugin_id }}-${{ steps.meta.outputs.tag }}-realm-plugin.zip"
+          (
+            cd "$DIST"
+            cp "$WORK_ROOT/plugin/manifest.json" manifest.json
+            zip -q "$zip_name" server_plugin.wasm client_plugin.gtpack manifest.json
+            rm -f manifest.json
+            sha256sum server_plugin.wasm client_plugin.gtpack "$zip_name" > SHA256SUMS.txt
+          )
+
+      - name: Attest build provenance for server_plugin.wasm
+        uses: actions/attest@v4
+        with:
+          subject-path: _dist/server_plugin.wasm
+
+      - name: Attest build provenance for client_plugin.gtpack
+        uses: actions/attest@v4
+        with:
+          subject-path: _dist/client_plugin.gtpack
+
+      - name: Create or update GitHub Release assets
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          TAG="${{ steps.meta.outputs.tag }}"
+          ZIP_NAME="${{ steps.meta.outputs.plugin_id }}-${TAG}-realm-plugin.zip"
+          cd plugin
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" \
+              ../_dist/server_plugin.wasm \
+              ../_dist/client_plugin.gtpack \
+              "../_dist/$ZIP_NAME" \
+              ../_dist/SHA256SUMS.txt \
+              --clobber
+          else
+            gh release create "$TAG" \
+              ../_dist/server_plugin.wasm \
+              ../_dist/client_plugin.gtpack \
+              "../_dist/$ZIP_NAME" \
+              ../_dist/SHA256SUMS.txt \
+              --verify-tag \
+              --title "${{ steps.meta.outputs.plugin_id }} $TAG" \
+              --notes "Hero Armory plugin release built and attested by mmoboy/hero-armory-sdk."
+          fi
