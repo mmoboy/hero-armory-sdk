@@ -1,0 +1,7 @@
+{
+  "id": "standard-realm",
+  "name": "Sanctuary Standard Realm",
+  "version": "1.0.0",
+  "description": "Classic 5x5 Sanctuary realms, jobs, sets, NPCs, monsters, and quests authored on hero-armory-sdk.",
+  "permissions": ["ui", "world", "audio", "codex"]
+}
