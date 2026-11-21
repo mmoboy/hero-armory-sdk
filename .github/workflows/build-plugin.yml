@@ -52,6 +52,7 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ inputs.go_version }}
+          cache: false
 
       - name: Verify clean checkout, go.mod policy, and manifest
         id: meta
@@ -125,11 +126,16 @@ jobs:
           mkdir -p "$DIST" "$STAGE"
 
           cd "$WORK_ROOT/plugin"
-          GOWORK=off GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
+          if [[ ! -f go.sum ]]; then
+            echo "No go.sum found; resolving module checksums via go mod tidy..."
+            GOWORK=off GOPROXY=https://proxy.golang.org,direct go mod tidy
+          fi
+
+          GOWORK=off GOPROXY=https://proxy.golang.org,direct GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
             go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
             -o "$DIST/server_plugin.wasm" ./server
 
-          GOWORK=off GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
+          GOWORK=off GOPROXY=https://proxy.golang.org,direct GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 \
             go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
             -o "$STAGE/client.wasm" ./client
 
@@ -172,12 +178,13 @@ jobs:
           TAG="${{ steps.meta.outputs.tag }}"
           ZIP_NAME="${{ steps.meta.outputs.plugin_id }}-${TAG}-realm-plugin.zip"
           cd plugin
-          if gh release view "$TAG" >/dev/null 2>&1; then
+          if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "$TAG" \
               ../_dist/server_plugin.wasm \
               ../_dist/client_plugin.gtpack \
               "../_dist/$ZIP_NAME" \
               ../_dist/SHA256SUMS.txt \
+              --repo "${GITHUB_REPOSITORY}" \
               --clobber
           else
             gh release create "$TAG" \
@@ -185,6 +192,7 @@ jobs:
               ../_dist/client_plugin.gtpack \
               "../_dist/$ZIP_NAME" \
               ../_dist/SHA256SUMS.txt \
+              --repo "${GITHUB_REPOSITORY}" \
               --verify-tag \
               --title "${{ steps.meta.outputs.plugin_id }} $TAG" \
               --notes "Hero Armory plugin release built and attested by mmoboy/hero-armory-sdk."
