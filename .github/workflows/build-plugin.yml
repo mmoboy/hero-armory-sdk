@@ -8,6 +8,11 @@ on:
         required: false
         type: string
         default: "1.24.x"
+      sdk_ref:
+        description: "hero-armory-sdk git ref used to run cmd/pack (defaults to v1)"
+        required: false
+        type: string
+        default: "v1"
 
 jobs:
   build-and-attest:
@@ -25,26 +30,11 @@ jobs:
           path: plugin
           persist-credentials: false
 
-      - name: Resolve SDK workflow ref
-        id: sdk_ref
-        shell: bash
-        run: |
-          # github.workflow_ref looks like:
-          #   mmoboy/hero-armory-sdk/.github/workflows/build-plugin.yml@refs/tags/v1
-          raw_ref="${{ github.workflow_ref }}"
-          ref="${raw_ref##*@}"
-          ref="${ref#refs/tags/}"
-          ref="${ref#refs/heads/}"
-          if [[ -z "$ref" ]]; then
-            ref="main"
-          fi
-          echo "ref=$ref" >> "$GITHUB_OUTPUT"
-
       - name: Checkout official hero-armory-sdk
         uses: actions/checkout@v4
         with:
           repository: mmoboy/hero-armory-sdk
-          ref: ${{ steps.sdk_ref.outputs.ref }}
+          ref: ${{ inputs.sdk_ref }}
           path: sdk
           persist-credentials: false
 

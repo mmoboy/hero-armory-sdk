@@ -2,7 +2,7 @@
   "sdk_version": 1,
   "id": "realm_bounty",
   "name": "Realm Bounty Board",
-  "version": "1.0.0",
+  "version": "1.0.4",
   "author": "Hero Armory SDK Example",
   "description": "Adds a Realm Bounty Board toggle button to HUD Actions with rotating exploration, chat, and realm cheer challenges.",
   "entry_wasm": "client.wasm",
