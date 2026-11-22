@@ -108,3 +108,66 @@ func SanctuaryStarterConfig() sdk.StarterConfigSpec {
 		BaseAP:              6,
 	}
 }
+
+// SanctuaryStarterClasses returns the four canonical Sanctuary archetype classes
+// (Kokiri Guardian, Gobball Warchief, Wakfu Chronomancer, Twilight Sentinel)
+// for vanilla_extended character creation plugins.
+func SanctuaryStarterClasses() []sdk.StarterClassSpec {
+	return []sdk.StarterClassSpec{
+		{
+			ID:          "kokiri_guardian",
+			Name:        "Kokiri Guardian",
+			Description: "Agile forest vanguard clad in Kokiri emerald mail.",
+			Icon:        "ha_spell_strike",
+			Equipped: map[string]string{
+				"hat":    "hat_kokiri_cap",
+				"chest":  "chest_kokiri_tunic",
+				"boots":  "boots_kokiri_pegasus",
+				"weapon": "weapon_master_blade",
+			},
+			BonusHP: 20,
+		},
+		{
+			ID:          "gobball_warchief",
+			Name:        "Gobball Warchief",
+			Description: "Frontline bruiser swinging the massive Goultard Cleaver.",
+			Icon:        "star",
+			Equipped: map[string]string{
+				"hat":    "hat_gobball_headgear",
+				"chest":  "chest_gobball_cuirass",
+				"boots":  "boots_gobball_sabatons",
+				"weapon": "weapon_goultard_cleaver",
+			},
+			BonusHP: 35,
+			BonusAP: 1,
+		},
+		{
+			ID:          "wakfu_chronomancer",
+			Name:        "Wakfu Chronomancer",
+			Description: "Arcane time-weaver channeling Xelor Stasis energies.",
+			Icon:        "ha_spell_bolt",
+			Equipped: map[string]string{
+				"hat":    "hat_wakfu_chronocowl",
+				"chest":  "chest_wakfu_robe",
+				"boots":  "boots_wakfu_striders",
+				"weapon": "weapon_xelor_staff",
+			},
+			BonusAP: 1,
+			BonusMP: 1,
+		},
+		{
+			ID:          "twilight_sentinel",
+			Name:        "Twilight Sentinel",
+			Description: "Shadow-attuned halberdier watching the Twilight shrine.",
+			Icon:        "ha_spell_nova",
+			Equipped: map[string]string{
+				"hat":    "hat_twilight_crown",
+				"chest":  "chest_twilight_hauberk",
+				"boots":  "boots_twilight_greaves",
+				"weapon": "weapon_guardian_halberd",
+			},
+			BonusHP: 15,
+			BonusMP: 1,
+		},
+	}
+}

@@ -1,0 +1,11 @@
+{
+  "sdk_version": 1,
+  "id": "custom_char_create",
+  "name": "Sanctuary Origins",
+  "version": "1.0.0",
+  "author": "Hero Armory SDK Example",
+  "description": "Demonstrates Realm-authoritative character creation using Sanctuary starter classes, custom validation, live 3D pedestal previews, and custom submit UI.",
+  "entry_wasm": "client.wasm",
+  "permissions": ["hud_actions", "overlay_ui", "packets"],
+  "required": true
+}

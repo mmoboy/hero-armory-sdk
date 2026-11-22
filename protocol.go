@@ -546,3 +546,147 @@ type PlayerSkillSpec struct {
 	VFXColor      [4]float32 `json:"vfx_color,omitempty"`
 	SortOrder     int        `json:"sort_order,omitempty"`
 }
+
+// Character creation mode identifiers returned by Realm server plugins.
+const (
+	CharCreateModeVanilla         = "vanilla"
+	CharCreateModeVanillaExtended = "vanilla_extended"
+	CharCreateModePluginCustom    = "plugin_custom"
+)
+
+// HeroAppearanceSpec represents customizable Vanilla body, face, hair, and eye fields.
+type HeroAppearanceSpec struct {
+	IrisColor        [4]float32 `json:"iris_color,omitempty"`
+	IrisColorR       [4]float32 `json:"iris_color_r,omitempty"`
+	Heterochromia    bool       `json:"heterochromia,omitempty"`
+	HairColor        [4]float32 `json:"hair_color,omitempty"`
+	HairHighlight    [4]float32 `json:"hair_highlight,omitempty"`
+	HairSheen        float32    `json:"hair_sheen,omitempty"`
+	HairStyle        int        `json:"hair_style,omitempty"`
+	EarStyle         int        `json:"ear_style,omitempty"`
+	EarTint          float32    `json:"ear_tint,omitempty"`
+	HeadStyle        int        `json:"head_style,omitempty"`
+	HeadScale        float32    `json:"head_scale,omitempty"`
+	HeadWidth        float32    `json:"head_width,omitempty"`
+	HeadHeight       float32    `json:"head_height,omitempty"`
+	HeadDepth        float32    `json:"head_depth,omitempty"`
+	JawContour       float32    `json:"jaw_contour,omitempty"`
+	SkinColor        [4]float32 `json:"skin_color,omitempty"`
+	BrowColor        [4]float32 `json:"brow_color,omitempty"`
+	MatchHairBrow    bool       `json:"match_hair_brow,omitempty"`
+	BlushColor       [4]float32 `json:"blush_color,omitempty"`
+	MarkingColor     [4]float32 `json:"marking_color,omitempty"`
+	LipColor         [4]float32 `json:"lip_color,omitempty"`
+	LashColor        [4]float32 `json:"lash_color,omitempty"`
+	ScleraColor      [4]float32 `json:"sclera_color,omitempty"`
+	TunicColor       [4]float32 `json:"tunic_color,omitempty"`
+	PantsColor       [4]float32 `json:"pants_color,omitempty"`
+	PupilScale       float32    `json:"pupil_scale,omitempty"`
+	PupilShape       int        `json:"pupil_shape,omitempty"`
+	LashStyle        int        `json:"lash_style,omitempty"`
+	BrowStyle        int        `json:"brow_style,omitempty"`
+	IrisSize         float32    `json:"iris_size,omitempty"`
+	EyeGlow          float32    `json:"eye_glow,omitempty"`
+	CatchlightSize   float32    `json:"catchlight_size,omitempty"`
+	BrowThickScale   float32    `json:"brow_thick_scale,omitempty"`
+	BrowHeightOffset float32    `json:"brow_height_offset,omitempty"`
+	MouthSize        float32    `json:"mouth_size,omitempty"`
+	MouthStyle       int        `json:"mouth_style,omitempty"`
+	BlushLevel       float32    `json:"blush_level,omitempty"`
+	NoseTint         float32    `json:"nose_tint,omitempty"`
+	Freckles         float32    `json:"freckles,omitempty"`
+	FaceMarking      int        `json:"face_marking,omitempty"`
+}
+
+// StarterClassSpec defines one realm-offered starter class or origin option.
+type StarterClassSpec struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Icon        string            `json:"icon,omitempty"`
+	Equipped    map[string]string `json:"equipped,omitempty"`
+	BonusHP     int               `json:"bonus_hp,omitempty"`
+	BonusAP     int               `json:"bonus_ap,omitempty"`
+	BonusMP     int               `json:"bonus_mp,omitempty"`
+}
+
+// CharacterCreateConfig configures Realm-authoritative character creation.
+type CharacterCreateConfig struct {
+	Mode          string             `json:"mode,omitempty"`
+	Title         string             `json:"title,omitempty"`
+	Subtitle      string             `json:"subtitle,omitempty"`
+	Classes       []StarterClassSpec `json:"classes,omitempty"`
+	HideBodyTab   bool               `json:"hide_body_tab,omitempty"`
+	HideFaceTab   bool               `json:"hide_face_tab,omitempty"`
+	HideEyesTab   bool               `json:"hide_eyes_tab,omitempty"`
+	HideNameInput bool               `json:"hide_name_input,omitempty"`
+	CustomData    []byte             `json:"custom_data,omitempty"`
+}
+
+// BeginCharacterCreateEvent notifies ServerPlugin when a player begins hero creation.
+type BeginCharacterCreateEvent struct {
+	AccountID   string `json:"account_id"`
+	DisplayName string `json:"display_name,omitempty"`
+}
+
+// FinalizeCharacterCreateEvent asks ServerPlugin to validate and finalize hero creation.
+type FinalizeCharacterCreateEvent struct {
+	AccountID   string             `json:"account_id"`
+	DisplayName string             `json:"display_name,omitempty"`
+	HeroName    string             `json:"hero_name"`
+	ClassID     string             `json:"class_id,omitempty"`
+	CustomData  []byte             `json:"custom_data,omitempty"`
+	Appearance  HeroAppearanceSpec `json:"appearance"`
+}
+
+// CharacterCreateResult specifies authoritative starter gear, bag items, gold,
+// stats, spawn point, and optional KV writes for a newly created hero.
+type CharacterCreateResult struct {
+	RejectMessage         string             `json:"reject_message,omitempty"`
+	HeroName              string             `json:"hero_name,omitempty"`
+	AppearanceOverride    HeroAppearanceSpec `json:"appearance_override,omitempty"`
+	UseAppearanceOverride bool               `json:"use_appearance_override,omitempty"`
+	Equipped              map[string]string  `json:"equipped,omitempty"`
+	OverrideEquipped      bool               `json:"override_equipped,omitempty"`
+	StarterBag            []ItemStackSpec    `json:"starter_bag,omitempty"`
+	OverrideStarterBag    bool               `json:"override_starter_bag,omitempty"`
+	StarterGold           int64              `json:"starter_gold,omitempty"`
+	OverrideStarterGold   bool               `json:"override_starter_gold,omitempty"`
+	BaseHP                int                `json:"base_hp,omitempty"`
+	BaseAP                int                `json:"base_ap,omitempty"`
+	BaseMP                int                `json:"base_mp,omitempty"`
+	SpawnRoomX            int                `json:"spawn_room_x,omitempty"`
+	SpawnRoomY            int                `json:"spawn_room_y,omitempty"`
+	SpawnPos              [3]float32         `json:"spawn_pos,omitempty"`
+	OverrideSpawn         bool               `json:"override_spawn,omitempty"`
+	CustomKV              map[string][]byte  `json:"custom_kv,omitempty"`
+	WelcomeNotice         string             `json:"welcome_notice,omitempty"`
+}
+
+// CharacterCreateContext is delivered to ClientPlugin.OnEnterCharacterCreate.
+type CharacterCreateContext struct {
+	ServerID    string                `json:"server_id"`
+	ServerName  string                `json:"server_name"`
+	Mode        string                `json:"mode"`
+	Config      CharacterCreateConfig `json:"config"`
+	AccountID   string                `json:"account_id,omitempty"`
+	DisplayName string                `json:"display_name,omitempty"`
+}
+
+// CharacterCreatePreviewSpec updates the 3D Sanctuary pedestal during character creation.
+type CharacterCreatePreviewSpec struct {
+	Equipped      map[string]string  `json:"equipped,omitempty"`
+	ApplyEquipped bool               `json:"apply_equipped,omitempty"`
+	Appearance    HeroAppearanceSpec `json:"appearance,omitempty"`
+	UseAppearance bool               `json:"use_appearance,omitempty"`
+	Pose          string             `json:"pose,omitempty"`
+	CameraFocus   string             `json:"camera_focus,omitempty"`
+}
+
+// CharacterCreateSubmission submits character creation from a custom ClientPlugin screen.
+type CharacterCreateSubmission struct {
+	Name             string `json:"name"`
+	ClassID          string `json:"class_id,omitempty"`
+	CustomData       []byte `json:"custom_data,omitempty"`
+	EnterImmediately bool   `json:"enter_immediately,omitempty"`
+}

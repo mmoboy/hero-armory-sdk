@@ -111,6 +111,18 @@ func hostServerRegisterJob(ptr, size uint32) int32
 //go:wasmimport hero_armory host_server_set_npc_result
 func hostServerSetNPCResult(ptr, size uint32) int32
 
+//go:wasmimport hero_armory host_ui_set_create_preview
+func hostUISetCreatePreview(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_ui_submit_char_create
+func hostUISubmitCharCreate(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_char_create_config
+func hostServerSetCharCreateConfig(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_char_create_result
+func hostServerSetCharCreateResult(ptr, size uint32) int32
+
 var (
 	allocMu  sync.Mutex
 	allocMap = make(map[uint32][]byte)
@@ -444,6 +456,34 @@ func abiServerSetNPCResult(raw []byte) int32 {
 	return res
 }
 
+func abiSetCreatePreview(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostUISetCreatePreview(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiSubmitCharCreate(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostUISubmitCharCreate(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetCharCreateConfig(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetCharCreateConfig(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetCharCreateResult(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetCharCreateResult(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
 //go:wasmexport plugin_init
 func pluginInit() int32 {
 	if activeClient != nil {
@@ -625,4 +665,64 @@ func pluginOnInteract(ptr, size uint32) int32 {
 		return 1
 	}
 	return 0
+}
+
+//go:wasmexport plugin_on_enter_char_create
+func pluginOnEnterCharCreate(ptr, size uint32) {
+	h, ok := activeClient.(CharacterCreateClientPlugin)
+	if !ok || h == nil {
+		return
+	}
+	var ctx CharacterCreateContext
+	if json.Unmarshal(readGuestSlice(ptr, size), &ctx) == nil {
+		h.OnEnterCharacterCreate(ctx)
+	}
+}
+
+//go:wasmexport plugin_on_begin_char_create
+func pluginOnBeginCharCreate(ptr, size uint32) int32 {
+	h, ok := activeServer.(CharacterCreatePlugin)
+	if !ok || h == nil {
+		return 0
+	}
+	var ev BeginCharacterCreateEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) != nil {
+		return 0
+	}
+	cfg, handled := h.OnBeginCharacterCreate(ev)
+	if !handled {
+		return 0
+	}
+	raw, err := json.Marshal(cfg)
+	if err != nil {
+		return 0
+	}
+	if rc := abiServerSetCharCreateConfig(raw); rc < 0 {
+		return 0
+	}
+	return 1
+}
+
+//go:wasmexport plugin_on_finalize_char_create
+func pluginOnFinalizeCharCreate(ptr, size uint32) int32 {
+	h, ok := activeServer.(CharacterCreatePlugin)
+	if !ok || h == nil {
+		return 0
+	}
+	var ev FinalizeCharacterCreateEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) != nil {
+		return 0
+	}
+	res, err := h.OnFinalizeCharacterCreate(ev)
+	if err != nil {
+		res = CharacterCreateResult{RejectMessage: err.Error()}
+	}
+	raw, mErr := json.Marshal(res)
+	if mErr != nil {
+		return 0
+	}
+	if rc := abiServerSetCharCreateResult(raw); rc < 0 {
+		return 0
+	}
+	return 1
 }

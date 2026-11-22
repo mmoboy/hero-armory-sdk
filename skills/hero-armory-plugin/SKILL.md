@@ -32,8 +32,8 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
    - Never omit `-buildmode=c-shared` (host ABI exports depend on it).
    - Register the plugin in `func init()` via `sdk.RegisterServer(...)` or `sdk.RegisterClient(...)`, and keep `func main() {}` empty.
 3. **Strict VM Role Separation**:
-   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, and `KV*`.
-   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `ClearOverlay`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`.
+   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, and `KV*`, plus optional lifecycle hooks `OnBeginCharacterCreate` and `OnFinalizeCharacterCreate`.
+   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `ClearOverlay`, `SetCharacterCreatePreview`, `SubmitCharacterCreate`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`, plus optional `OnEnterCharacterCreate`.
    - `sdk.Log(msg)` works in both roles.
    - Calling a hostcall from the wrong VM role returns `sdk.ErrWrongRole` / negative error code.
 4. **Content IDs & Naming Convention**:
@@ -279,4 +279,14 @@ jobs:
 
 Push a matching tag (for example `v1.0.0` for `"version": "1.0.0"` in `manifest.json`), wait for GitHub Actions to build and attest `server_plugin.wasm` + `client_plugin.gtpack` for free, then submit the repo URL + tag at `https://kmmo.enlumis.com/plugins` for a **Source-Verified** catalog entry selectable directly inside the Hero Armory desktop client.
 
-For working references, inspect `sdk/hero-armory-plugin-example` (`github.com/mmoboy/hero-armory-plugin-example`) and `sdk/hero-armory-sdk/vanilla` alongside `sdk/hero-armory-sdk/examples/{realm_bounty,standard_realm,minimal_realm}`.
+For working references, inspect `sdk/hero-armory-plugin-example` (`github.com/mmoboy/hero-armory-plugin-example`) and `sdk/hero-armory-sdk/vanilla` alongside `sdk/hero-armory-sdk/examples/{realm_bounty,custom_char_create,standard_realm,minimal_realm}`.
+
+### Realm-Authoritative Character Creation
+
+- **Server hook**: Implement optional `sdk.CharacterCreatePlugin` (`OnBeginCharacterCreate`, `OnFinalizeCharacterCreate`). Do NOT add these methods on `BaseServerPlugin`; only realms customizing character creation implement them.
+  - `CharacterCreateConfig.Mode`: `sdk.CharCreateModeVanilla` (`"vanilla"`, default UI + portable client Saved Looks presets), `sdk.CharCreateModeVanillaExtended` (`"vanilla_extended"`, keeps built-in sliders/presets while presenting Realm `Classes []StarterClassSpec`, e.g. `vanilla.SanctuaryStarterClasses()`), or `sdk.CharCreateModePluginCustom` (`"plugin_custom"`, delegates creation UI to `client.wasm`).
+  - `CharacterCreateResult`: returns `RejectMessage` (or Go `error` from `OnFinalizeCharacterCreate`) to keep the player on `ScreenCharacterCreate` with the server error, or overrides `HeroName`, `AppearanceOverride`/`UseAppearanceOverride`, `Equipped`/`OverrideEquipped`, `StarterBag`/`OverrideStarterBag`, `StarterGold`/`OverrideStarterGold`, `BaseHP`, `BaseAP`, `BaseMP`, `SpawnRoomX`/`SpawnRoomY`/`SpawnPos`/`OverrideSpawn`, `CustomKV` (`{hero_id}` placeholder is substituted with the created hero's ID), and `WelcomeNotice`.
+- **Client hook (`plugin_custom` or overlay helpers)**: Implement optional `sdk.CharacterCreateClientPlugin` (`OnEnterCharacterCreate(ctx CharacterCreateContext)`).
+  - Use `sdk.SetOverlay(UIPanelSpec{...})` to render custom class/trait/name controls on `ScreenCharacterCreate`.
+  - Call `sdk.SetCharacterCreatePreview(CharacterCreatePreviewSpec{...})` to drive the live 3D Sanctuary pedestal (`Equipped`/`ApplyEquipped`, `Appearance`/`UseAppearance`, `Pose`, `CameraFocus` `"body"` or `"face"`).
+  - Call `sdk.SubmitCharacterCreate(CharacterCreateSubmission{Name, ClassID, CustomData, EnterImmediately: true})` when the player submits.

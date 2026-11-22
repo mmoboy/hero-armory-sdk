@@ -36,3 +36,7 @@ func abiServerSetStarterConfig([]byte) int32        { return 0 }
 func abiServerRegisterPlayerSkill([]byte) int32     { return 0 }
 func abiServerRegisterJob([]byte) int32             { return 0 }
 func abiServerSetNPCResult([]byte) int32            { return 0 }
+func abiSetCreatePreview([]byte) int32              { return 0 }
+func abiSubmitCharCreate([]byte) int32              { return 0 }
+func abiServerSetCharCreateConfig([]byte) int32     { return 0 }
+func abiServerSetCharCreateResult([]byte) int32     { return 0 }

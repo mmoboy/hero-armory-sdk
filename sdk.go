@@ -59,8 +59,21 @@ type BaseClientPlugin struct{}
 func (BaseClientPlugin) Init()                     {}
 func (BaseClientPlugin) OnEnterWorld(HeroSnapshot) {}
 func (BaseClientPlugin) OnTick(uint32)             {}
-func (BaseClientPlugin) OnPacket(uint16, []byte)   {}
-func (BaseClientPlugin) OnUIEvent(UIClickEvent)    {}
+func (BaseClientPlugin) OnPacket(uint16, []byte) {}
+func (BaseClientPlugin) OnUIEvent(UIClickEvent)  {}
+
+// CharacterCreateClientPlugin is optionally implemented by ClientPlugin to mount
+// custom character-creation UI or drive 3D pedestal previews before spawning.
+type CharacterCreateClientPlugin interface {
+	OnEnterCharacterCreate(ctx CharacterCreateContext)
+}
+
+// CharacterCreatePlugin is optionally implemented by ServerPlugin to customize
+// character creation rules, starter classes, validation, and starting state.
+type CharacterCreatePlugin interface {
+	OnBeginCharacterCreate(ev BeginCharacterCreateEvent) (CharacterCreateConfig, bool)
+	OnFinalizeCharacterCreate(ev FinalizeCharacterCreateEvent) (CharacterCreateResult, error)
+}
 
 // BattleObserverPlugin is optionally implemented by ServerPlugin implementations
 // that want callbacks whenever a tactical battle concludes.
@@ -601,4 +614,33 @@ func PrefList(prefix string, limit int) ([]string, error) {
 		return nil, err
 	}
 	return keys, nil
+}
+
+// SetCharacterCreatePreview updates the live 3D Sanctuary pedestal gear,
+// appearance, pose, or camera zoom during ScreenCharacterCreate (RoleClient only).
+func SetCharacterCreatePreview(spec CharacterCreatePreviewSpec) error {
+	raw, err := json.Marshal(spec)
+	if err != nil {
+		return err
+	}
+	if len(raw) > 32768 {
+		return ErrInvalidArg
+	}
+	return storageCodeToErr(abiSetCreatePreview(raw))
+}
+
+// SubmitCharacterCreate submits hero creation to the active Realm from a custom
+// RoleClient character-creation overlay (RoleClient only).
+func SubmitCharacterCreate(sub CharacterCreateSubmission) error {
+	if len(sub.CustomData) > 16*1024 {
+		return ErrInvalidArg
+	}
+	raw, err := json.Marshal(sub)
+	if err != nil {
+		return err
+	}
+	if len(raw) > 32768 {
+		return ErrInvalidArg
+	}
+	return storageCodeToErr(abiSubmitCharCreate(raw))
 }

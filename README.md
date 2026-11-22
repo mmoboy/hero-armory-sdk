@@ -75,3 +75,18 @@ Add up to 6 `.png` or `.jpg`/`.jpeg` screenshots (max 4 MiB each) under a top-le
 
 - `screenshots/` is intentionally **excluded** from `client_plugin.gtpack` so realm join downloads stay fast.
 - When publishing a release tag at `/plugins`, the Hero Armory registry verifies your Sigstore build attestation commit SHA and indexes `screenshots/` directly from that immutable commit on GitHub for display on the website and in the desktop client.
+
+## Realm-Authoritative Character Creation & Vanilla Presets
+
+Hero Armory separates client look presets from Realm-authoritative character creation rules:
+
+- **Vanilla (`CharCreateModeVanilla`)**: Default realms render the built-in 3D Hero customizer and client-local **Saved Looks** presets (purely cosmetic body/face/eye/hair settings + preset name, reusable across Vanilla realms).
+- **Vanilla Extended (`CharCreateModeVanillaExtended`)**: Keep the built-in customizer and Saved Looks bar while offering Realm starter classes (such as `vanilla.SanctuaryStarterClasses()`), custom validation, starter gear/bag/gold/base stats, and `{hero_id}` KV initialization via `sdk.CharacterCreatePlugin`.
+- **Custom Plugin Screen (`CharCreateModePluginCustom`)**: Replace the creation controls via `sdk.CharacterCreateClientPlugin.OnEnterCharacterCreate(ctx)` using `sdk.SetOverlay`, drive the live 3D Sanctuary pedestal via `sdk.SetCharacterCreatePreview`, and finalize via `sdk.SubmitCharacterCreate`.
+
+## Examples
+
+- `examples/minimal_realm`: Bare-bones empty-shell world example (`server_plugin.wasm` only).
+- `examples/standard_realm`: Full classic Sanctuary world rebuilt via `hero-armory-sdk/vanilla`.
+- `examples/realm_bounty`: HUD actions, floating board overlay, Realm KV/Prefs, custom 3D mesh & boss monster.
+- `examples/custom_char_create`: Realm-authoritative starter classes, live 3D creation preview, custom validation, and submit flow.
