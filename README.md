@@ -65,3 +65,13 @@ cp manifest.json dist/stage/manifest.json
 cp -r assets dist/stage/assets   # if present
 go run github.com/mmoboy/hero-armory-sdk/cmd/pack@v1 -dir dist/stage -out dist/client_plugin.gtpack
 ```
+
+
+## Showcase Screenshots (Source-Verified Releases)
+
+Add up to 6 `.png` or `.jpg`/`.jpeg` screenshots (max 4 MiB each) under a top-level
+`screenshots/` directory in your public GitHub plugin repository (see
+`examples/realm_bounty/screenshots/` and `hero-armory-plugin-example/screenshots/`).
+
+- `screenshots/` is intentionally **excluded** from `client_plugin.gtpack` so realm join downloads stay fast.
+- When publishing a release tag at `/plugins`, the Hero Armory registry verifies your Sigstore build attestation commit SHA and indexes `screenshots/` directly from that immutable commit on GitHub for display on the website and in the desktop client.

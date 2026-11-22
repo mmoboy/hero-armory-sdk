@@ -14,7 +14,7 @@ Use this skill whenever the user asks to create, scaffold, modify, debug, compil
 When the user asks you to create a plugin (for example: `"Create a Hero Armory plugin that..."`), execute **every step end-to-end** without stopping early:
 
 1. **Locate `hero-armory-sdk`**: For standalone GitHub repositories, use `go get github.com/mmoboy/hero-armory-sdk@latest` (and `.github/workflows/release.yml` via `github.com/mmoboy/hero-armory-plugin-example`). Inside the `AlphaBox` monorepo, use `sdk/hero-armory-sdk` via a temporary `replace` or `build.sh` `go.work`.
-2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), and `build.sh` (`chmod +x`).
+2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), `screenshots/` (optional showcase `.png`/`.jpg` images for verified GitHub releases), and `build.sh` (`chmod +x`).
 3. **Use safe icons/assets**: If the user did not supply a custom `.png` icon, use a built-in atlas icon name (such as `"star"`, `"shield"`, `"sword"`, `"book"`, `"compass"`) in `HUDActionSpec.Icon` and omit `icon` in `manifest.json` (or generate a valid PNG if requested).
 4. **Implement `proto/`, `server/`, and `client/`** following all rules in Sections 1-5 below.
 5. **Compile and pack**: Run `./build.sh` to produce `dist/server_plugin.wasm` and `dist/client_plugin.gtpack`, fixing any compiler or packer errors before finishing.
@@ -52,7 +52,8 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
 +-- go.mod
 +-- manifest.json
 +-- build.sh
-+-- assets/                 # optional: .png, .wav, .ogg, .glb, .json
++-- assets/                 # optional runtime files packed into client_plugin.gtpack: .png, .wav, .ogg, .glb, .json
++-- screenshots/            # optional showcase .png/.jpg images displayed from verified GitHub commits (not packed into .gtpack)
 +-- proto/                  # shared uint16 channel IDs & JSON packet structs
 |   +-- messages.go
 +-- server/
