@@ -13,6 +13,21 @@ on:
         required: false
         type: string
         default: "v1"
+      auto_publish:
+        description: "Notify the Hero Armory plugin registry via GitHub OIDC after releasing a tag"
+        required: false
+        type: boolean
+        default: true
+      publish_url:
+        description: "Hero Armory OIDC auto-publish endpoint URL"
+        required: false
+        type: string
+        default: "https://kmmo.enlumis.com/api/plugins/publish-oidc"
+      oidc_audience:
+        description: "Audience claim requested in the GitHub OIDC token"
+        required: false
+        type: string
+        default: "https://kmmo.enlumis.com"
 
 jobs:
   build-and-attest:
@@ -187,3 +202,58 @@ jobs:
               --title "${{ steps.meta.outputs.plugin_id }} $TAG" \
               --notes "Hero Armory plugin release built and attested by mmoboy/hero-armory-sdk."
           fi
+
+      - name: Auto-publish release to Hero Armory Plugin Library
+        if: github.ref_type == 'tag' && inputs.auto_publish && inputs.publish_url != ''
+        shell: bash
+        env:
+          PUBLISH_URL: ${{ inputs.publish_url }}
+          OIDC_AUDIENCE: ${{ inputs.oidc_audience }}
+          PLUGIN_TAG: ${{ steps.meta.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" || -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]]; then
+            echo "::notice::GitHub OIDC token endpoint unavailable; skipping automatic registry publish."
+            exit 0
+          fi
+
+          OIDC_JWT="$(
+            python3 - <<'PY'
+          import json, os, urllib.parse, urllib.request
+          url = os.environ["ACTIONS_ID_TOKEN_REQUEST_URL"]
+          sep = "&" if "?" in url else "?"
+          req_url = f"{url}{sep}audience={urllib.parse.quote(os.environ['OIDC_AUDIENCE'], safe='')}"
+          req = urllib.request.Request(
+              req_url,
+              headers={"Authorization": "bearer " + os.environ["ACTIONS_ID_TOKEN_REQUEST_TOKEN"]},
+          )
+          with urllib.request.urlopen(req, timeout=15) as resp:
+              data = json.load(resp)
+          print(data["value"])
+          PY
+          )"
+
+          BODY="$(python3 -c 'import json, os; print(json.dumps({"repo": os.environ["GITHUB_REPOSITORY"], "tag": os.environ["PLUGIN_TAG"]}))')"
+          RESP_FILE="$(mktemp)"
+          HTTP_CODE="$(
+            curl -sS -o "$RESP_FILE" -w "%{http_code}" \
+              -X POST \
+              -H "Authorization: Bearer ${OIDC_JWT}" \
+              -H "Content-Type: application/json" \
+              -d "$BODY" \
+              "${PUBLISH_URL}" || echo "000"
+          )"
+          echo "Registry response (HTTP ${HTTP_CODE}): $(cat "$RESP_FILE")"
+          if [[ "$HTTP_CODE" == "200" || "$HTTP_CODE" == "201" ]]; then
+            echo "### Hero Armory Registry Sync" >> "$GITHUB_STEP_SUMMARY"
+            echo "Synced \`${GITHUB_REPOSITORY}\` tag \`${PLUGIN_TAG}\` automatically." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if [[ "$HTTP_CODE" == "409" ]]; then
+            echo "::notice::Plugin not yet claimed on Hero Armory; publish once on /plugins to link this repository for automatic future updates."
+            echo "### Hero Armory Registry Sync" >> "$GITHUB_STEP_SUMMARY"
+            echo "Initial claim required: publish tag \`${PLUGIN_TAG}\` once while signed in on the Hero Armory website \`/plugins\` page. Subsequent releases will auto-sync via GitHub OIDC." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          echo "::error::Failed to notify Hero Armory registry (HTTP ${HTTP_CODE}): $(cat "$RESP_FILE")"
+          exit 1
