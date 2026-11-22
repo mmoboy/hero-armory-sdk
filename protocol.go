@@ -281,14 +281,14 @@ type CodexEntrySpec struct {
 
 // RoomTerrainOpSpec describes a deterministic walkable floor rectangle, ramp slope, or chasm void.
 type RoomTerrainOpSpec struct {
-	Op        string  `json:"op,omitempty"`         // "rect", "slope", "void"
-	Kind      string  `json:"kind,omitempty"`       // alias for Op when Surface is omitted, or surface preset ("courtyard", "bridge", "dais", "ramp", "path", "water", "wing", "alcove")
-	Surface   string  `json:"surface,omitempty"`    // explicit surface kind ("courtyard", "bridge", "dais", "ramp", "path", "water", "wing", "alcove")
+	Op        string  `json:"op,omitempty"`      // "rect", "slope", "void"
+	Kind      string  `json:"kind,omitempty"`    // alias for Op when Surface is omitted, or surface preset ("courtyard", "bridge", "dais", "ramp", "path", "water", "wing", "alcove")
+	Surface   string  `json:"surface,omitempty"` // explicit surface kind ("courtyard", "bridge", "dais", "ramp", "path", "water", "wing", "alcove")
 	MinX      float32 `json:"min_x"`
 	MaxX      float32 `json:"max_x"`
 	MinZ      float32 `json:"min_z"`
 	MaxZ      float32 `json:"max_z"`
-	RiseDir   string  `json:"rise_dir,omitempty"`   // "north", "south", "east", "west"
+	RiseDir   string  `json:"rise_dir,omitempty"` // "north", "south", "east", "west"
 	Elev      float32 `json:"elev,omitempty"`
 	ElevEnd   float32 `json:"elev_end,omitempty"`
 	Y         float32 `json:"y,omitempty"`
@@ -596,6 +596,9 @@ type HeroAppearanceSpec struct {
 	NoseTint         float32    `json:"nose_tint,omitempty"`
 	Freckles         float32    `json:"freckles,omitempty"`
 	FaceMarking      int        `json:"face_marking,omitempty"`
+	CustomModelPath  string     `json:"custom_model_path,omitempty"`
+	CustomModelID    string     `json:"custom_model_id,omitempty"`
+	CustomModelScale float32    `json:"custom_model_scale,omitempty"`
 }
 
 // StarterClassSpec defines one realm-offered starter class or origin option.
@@ -605,6 +608,9 @@ type StarterClassSpec struct {
 	Description string            `json:"description,omitempty"`
 	Icon        string            `json:"icon,omitempty"`
 	Equipped    map[string]string `json:"equipped,omitempty"`
+	ModelPath   string            `json:"model_path,omitempty"`
+	ModelID     string            `json:"model_id,omitempty"`
+	ModelScale  float32           `json:"model_scale,omitempty"`
 	BonusHP     int               `json:"bonus_hp,omitempty"`
 	BonusAP     int               `json:"bonus_ap,omitempty"`
 	BonusMP     int               `json:"bonus_mp,omitempty"`
@@ -679,6 +685,10 @@ type CharacterCreatePreviewSpec struct {
 	ApplyEquipped bool               `json:"apply_equipped,omitempty"`
 	Appearance    HeroAppearanceSpec `json:"appearance,omitempty"`
 	UseAppearance bool               `json:"use_appearance,omitempty"`
+	ModelPath     string             `json:"model_path,omitempty"`
+	ModelID       string             `json:"model_id,omitempty"`
+	ModelScale    float32            `json:"model_scale,omitempty"`
+	UseModel      bool               `json:"use_model,omitempty"`
 	Pose          string             `json:"pose,omitempty"`
 	CameraFocus   string             `json:"camera_focus,omitempty"`
 }

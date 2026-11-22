@@ -59,8 +59,8 @@ type BaseClientPlugin struct{}
 func (BaseClientPlugin) Init()                     {}
 func (BaseClientPlugin) OnEnterWorld(HeroSnapshot) {}
 func (BaseClientPlugin) OnTick(uint32)             {}
-func (BaseClientPlugin) OnPacket(uint16, []byte) {}
-func (BaseClientPlugin) OnUIEvent(UIClickEvent)  {}
+func (BaseClientPlugin) OnPacket(uint16, []byte)   {}
+func (BaseClientPlugin) OnUIEvent(UIClickEvent)    {}
 
 // CharacterCreateClientPlugin is optionally implemented by ClientPlugin to mount
 // custom character-creation UI or drive 3D pedestal previews before spawning.
@@ -103,16 +103,16 @@ type InteractPlugin interface {
 // BaseServerPlugin provides default no-op implementations of ServerPlugin.
 type BaseServerPlugin struct{}
 
-func (BaseServerPlugin) Init()                                       {}
-func (BaseServerPlugin) OnTick(uint32)                               {}
-func (BaseServerPlugin) OnPlayerJoin(HeroSnapshot)                   {}
-func (BaseServerPlugin) OnPlayerLeave(string)                        {}
-func (BaseServerPlugin) OnRoomEnter(RoomEvent)                       {}
-func (BaseServerPlugin) OnChat(ChatEvent)                            {}
-func (BaseServerPlugin) OnPacket(string, uint16, []byte)             {}
-func (BaseServerPlugin) OnBattleEnd(BattleEndEvent)                  {}
-func (BaseServerPlugin) OnGather(GatherEvent)                        {}
-func (BaseServerPlugin) OnCraft(CraftEvent)                          {}
+func (BaseServerPlugin) Init()                           {}
+func (BaseServerPlugin) OnTick(uint32)                   {}
+func (BaseServerPlugin) OnPlayerJoin(HeroSnapshot)       {}
+func (BaseServerPlugin) OnPlayerLeave(string)            {}
+func (BaseServerPlugin) OnRoomEnter(RoomEvent)           {}
+func (BaseServerPlugin) OnChat(ChatEvent)                {}
+func (BaseServerPlugin) OnPacket(string, uint16, []byte) {}
+func (BaseServerPlugin) OnBattleEnd(BattleEndEvent)      {}
+func (BaseServerPlugin) OnGather(GatherEvent)            {}
+func (BaseServerPlugin) OnCraft(CraftEvent)              {}
 func (BaseServerPlugin) OnNPCInteract(NPCInteractEvent) (NPCDialogResult, bool) {
 	return NPCDialogResult{}, false
 }

@@ -24,19 +24,19 @@ func abiServerKVDelete(string) int32              { return 0 }
 func abiServerKVList(string, int) ([]byte, int32) { return []byte("[]"), 0 }
 func abiPrefSet(string, string) int32             { return 0 }
 func abiPrefGet(string) ([]byte, bool, int32)     { return nil, false, 0 }
-func abiPrefDelete(string) int32                    { return 0 }
-func abiPrefList(string, int) ([]byte, int32)       { return []byte("[]"), 0 }
-func abiRegisterCustomMesh([]byte) int32            { return 0 }
-func abiServerRegisterRoom([]byte) int32            { return 0 }
-func abiServerRemoveRoom([]byte) int32              { return 0 }
-func abiServerSetSpawnRoom([]byte) int32            { return 0 }
-func abiServerRegisterNPC([]byte) int32             { return 0 }
-func abiServerSetHeroLoadout([]byte) int32          { return 0 }
-func abiServerSetStarterConfig([]byte) int32        { return 0 }
-func abiServerRegisterPlayerSkill([]byte) int32     { return 0 }
-func abiServerRegisterJob([]byte) int32             { return 0 }
-func abiServerSetNPCResult([]byte) int32            { return 0 }
-func abiSetCreatePreview([]byte) int32              { return 0 }
-func abiSubmitCharCreate([]byte) int32              { return 0 }
-func abiServerSetCharCreateConfig([]byte) int32     { return 0 }
-func abiServerSetCharCreateResult([]byte) int32     { return 0 }
+func abiPrefDelete(string) int32                  { return 0 }
+func abiPrefList(string, int) ([]byte, int32)     { return []byte("[]"), 0 }
+func abiRegisterCustomMesh([]byte) int32          { return 0 }
+func abiServerRegisterRoom([]byte) int32          { return 0 }
+func abiServerRemoveRoom([]byte) int32            { return 0 }
+func abiServerSetSpawnRoom([]byte) int32          { return 0 }
+func abiServerRegisterNPC([]byte) int32           { return 0 }
+func abiServerSetHeroLoadout([]byte) int32        { return 0 }
+func abiServerSetStarterConfig([]byte) int32      { return 0 }
+func abiServerRegisterPlayerSkill([]byte) int32   { return 0 }
+func abiServerRegisterJob([]byte) int32           { return 0 }
+func abiServerSetNPCResult([]byte) int32          { return 0 }
+func abiSetCreatePreview([]byte) int32            { return 0 }
+func abiSubmitCharCreate([]byte) int32            { return 0 }
+func abiServerSetCharCreateConfig([]byte) int32   { return 0 }
+func abiServerSetCharCreateResult([]byte) int32   { return 0 }

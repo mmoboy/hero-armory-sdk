@@ -97,6 +97,7 @@ var bountyOrigins = []bountyOriginDef{
 		StarterBag: []sdk.ItemStackSpec{
 			{ItemID: "cons_wakfu_potion", Quantity: 3},
 			{ItemID: "plug_bounty_ore", Quantity: 1},
+			{ItemID: "mat_wakfu_crystal", Quantity: 1},
 		},
 	},
 	{

@@ -45,16 +45,18 @@ const (
 
 // PluginManifest describes one realm's client plugin bundle (manifest.json inside .gtpack).
 type PluginManifest struct {
-	SDKVersion  int      `json:"sdk_version"`
-	ID          string   `json:"id"`
-	Name        string   `json:"name"`
-	Version     string   `json:"version"`
-	Author      string   `json:"author,omitempty"`
-	Description string   `json:"description,omitempty"`
-	EntryWasm   string   `json:"entry_wasm,omitempty"`
-	Icon        string   `json:"icon,omitempty"`
-	Permissions []string `json:"permissions,omitempty"`
-	Required    bool     `json:"required"`
+	SDKVersion             int      `json:"sdk_version"`
+	ID                     string   `json:"id"`
+	Name                   string   `json:"name"`
+	Version                string   `json:"version"`
+	BuiltWithClientVersion string   `json:"built_with_client_version,omitempty"`
+	BuiltWithServerVersion string   `json:"built_with_server_version,omitempty"`
+	Author                 string   `json:"author,omitempty"`
+	Description            string   `json:"description,omitempty"`
+	EntryWasm              string   `json:"entry_wasm,omitempty"`
+	Icon                   string   `json:"icon,omitempty"`
+	Permissions            []string `json:"permissions,omitempty"`
+	Required               bool     `json:"required"`
 }
 
 // ValidateManifest validates and normalizes a PluginManifest.
@@ -80,6 +82,8 @@ func ValidateManifest(m *PluginManifest) error {
 	if m.Version == "" {
 		m.Version = "1.0.0"
 	}
+	m.BuiltWithClientVersion = SanitizeASCII(strings.TrimSpace(m.BuiltWithClientVersion), 24)
+	m.BuiltWithServerVersion = SanitizeASCII(strings.TrimSpace(m.BuiltWithServerVersion), 24)
 	m.Author = SanitizeASCII(strings.TrimSpace(m.Author), 40)
 	m.Description = SanitizeASCII(strings.TrimSpace(m.Description), 240)
 	if strings.TrimSpace(m.EntryWasm) == "" {
