@@ -22,6 +22,7 @@ type BountySnapshot struct {
 	Completed      bool   `json:"completed"`
 	CompletedCount int    `json:"completed_count"`
 	RealmCheers    int    `json:"realm_cheers"`
+	OriginName     string `json:"origin_name,omitempty"`
 	RankTitle      string `json:"rank_title"`
 	LastEvent      string `json:"last_event"`
 }

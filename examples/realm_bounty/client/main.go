@@ -175,8 +175,12 @@ func (c *bountyClient) renderBountyOverlay() {
 		fillCol = [4]float32{0.22, 0.84, 0.56, 0.96}
 	}
 
-	statsLine := fmt.Sprintf("Progress: %d / %d  |  Done: %d (%s)  |  Cheers: %d",
-		c.state.Progress, c.state.Target, c.state.CompletedCount, c.state.RankTitle, c.state.RealmCheers)
+	origin := c.state.OriginName
+	if origin == "" {
+		origin = "Freelance"
+	}
+	statsLine := fmt.Sprintf("Origin: %s  |  Progress: %d/%d  |  Done: %d (%s)  |  Cheers: %d",
+		origin, c.state.Progress, c.state.Target, c.state.CompletedCount, c.state.RankTitle, c.state.RealmCheers)
 
 	sdk.SetOverlay(sdk.UIPanelSpec{
 		ID:          "bounty_board",

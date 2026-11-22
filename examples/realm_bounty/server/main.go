@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -58,6 +59,8 @@ var challenges = []challengeTemplate{
 type heroBountyState struct {
 	HeroID         string
 	HeroName       string
+	OriginID       string `json:"origin_id,omitempty"`
+	OriginName     string `json:"origin_name,omitempty"`
 	RoomX          int
 	RoomY          int
 	PosX           float32
@@ -69,6 +72,81 @@ type heroBountyState struct {
 	CompletedCount int
 	VisitedRooms   map[string]bool
 	LastEvent      string
+}
+
+type bountyOriginDef struct {
+	Class          sdk.StarterClassSpec
+	StartChallenge int
+	StarterGold    int64
+	StarterBag     []sdk.ItemStackSpec
+}
+
+var bountyOrigins = []bountyOriginDef{
+	{
+		Class: sdk.StarterClassSpec{
+			ID:          "bounty_pathfinder",
+			Name:        "Bounty Pathfinder",
+			Description: "Swift scout equipped for Chunk Explorer runs (+10 HP, +1 MP).",
+			Icon:        "ha_spell_strike",
+			Equipped:    vanilla.KokiriGear(),
+			BonusHP:     10,
+			BonusMP:     1,
+		},
+		StartChallenge: 0,
+		StarterGold:    220,
+		StarterBag: []sdk.ItemStackSpec{
+			{ItemID: "cons_wakfu_potion", Quantity: 3},
+			{ItemID: "plug_bounty_ore", Quantity: 1},
+		},
+	},
+	{
+		Class: sdk.StarterClassSpec{
+			ID:          "bounty_prospector",
+			Name:        "Ore Prospector",
+			Description: "Gilded Vein miner carrying Stalker Drafts (+20 HP, +1 AP).",
+			Icon:        "ha_job_mineur",
+			Equipped:    vanilla.GobballGear(),
+			BonusHP:     20,
+			BonusAP:     1,
+		},
+		StartChallenge: 4,
+		StarterGold:    260,
+		StarterBag: []sdk.ItemStackSpec{
+			{ItemID: "plug_bounty_ore", Quantity: 2},
+			{ItemID: "plug_bounty_elixir", Quantity: 1},
+			{ItemID: "cons_wakfu_potion", Quantity: 2},
+		},
+	},
+	{
+		Class: sdk.StarterClassSpec{
+			ID:          "bounty_stalker",
+			Name:        "Stalker Hunter",
+			Description: "Relic hunter wielding the Gilded Halberd for boss hunts (+25 HP, +1 AP).",
+			Icon:        "ha_spell_nova",
+			Equipped: map[string]string{
+				"hat":    "hat_twilight_crown",
+				"chest":  "chest_twilight_hauberk",
+				"boots":  "boots_twilight_greaves",
+				"weapon": "plug_stalker_halberd",
+			},
+			BonusHP: 25,
+			BonusAP: 1,
+		},
+		StartChallenge: 3,
+		StarterGold:    300,
+		StarterBag: []sdk.ItemStackSpec{
+			{ItemID: "cons_red_heart_elixir", Quantity: 2},
+			{ItemID: "plug_bounty_elixir", Quantity: 1},
+		},
+	},
+}
+
+func bountyStarterClasses() []sdk.StarterClassSpec {
+	out := make([]sdk.StarterClassSpec, 0, len(bountyOrigins))
+	for _, o := range bountyOrigins {
+		out = append(out, o.Class)
+	}
+	return out
 }
 
 type bountyServer struct {
@@ -101,10 +179,19 @@ func (s *bountyServer) loadPersistedState() {
 	restored := 0
 	for _, key := range keys {
 		var st heroBountyState
-		if ok, err := sdk.KVGetJSON(key, &st); err == nil && ok && st.HeroID != "" {
+		if ok, err := sdk.KVGetJSON(key, &st); err == nil && ok {
+			if st.HeroID == "" {
+				st.HeroID = strings.TrimPrefix(key, "hero:")
+			}
+			if st.HeroID == "" {
+				continue
+			}
 			st.Online = false
 			if st.VisitedRooms == nil {
 				st.VisitedRooms = make(map[string]bool)
+			}
+			if st.OriginName == "" {
+				st.OriginName = "Freelance"
 			}
 			s.heroes[st.HeroID] = &st
 			restored++
@@ -436,16 +523,91 @@ func (s *bountyServer) Init() {
 	s.loadPersistedState()
 }
 
+func (s *bountyServer) OnBeginCharacterCreate(ev sdk.BeginCharacterCreateEvent) (sdk.CharacterCreateConfig, bool) {
+	return sdk.CharacterCreateConfig{
+		Mode:     sdk.CharCreateModeVanillaExtended,
+		Title:    "BOUNTY GUILD INITIATION",
+		Subtitle: "Pick a Bounty Guild origin for " + ev.DisplayName + " (Vanilla Saved Looks apply)",
+		Classes:  bountyStarterClasses(),
+	}, true
+}
+
+func (s *bountyServer) OnFinalizeCharacterCreate(ev sdk.FinalizeCharacterCreateEvent) (sdk.CharacterCreateResult, error) {
+	name := strings.TrimSpace(ev.HeroName)
+	if len(name) < 3 {
+		return sdk.CharacterCreateResult{}, errors.New("hero name must be at least 3 characters")
+	}
+	switch strings.ToLower(name) {
+	case "stalker", "harbinger", "bounty", "gilded", "admin", "system":
+		return sdk.CharacterCreateResult{}, errors.New("reserved guild name rejected by Bounty Board")
+	}
+
+	origin := bountyOrigins[0]
+	matched := false
+	for _, candidate := range bountyOrigins {
+		if candidate.Class.ID == ev.ClassID {
+			origin = candidate
+			matched = true
+			break
+		}
+	}
+	if !matched && strings.TrimSpace(ev.ClassID) != "" {
+		return sdk.CharacterCreateResult{}, errors.New("unknown bounty guild origin: " + ev.ClassID)
+	}
+
+	tpl := challenges[origin.StartChallenge%len(challenges)]
+	rawHero, _ := json.Marshal(heroBountyState{
+		HeroName:     name,
+		OriginID:     origin.Class.ID,
+		OriginName:   origin.Class.Name,
+		ChallengeIdx: origin.StartChallenge,
+		VisitedRooms: make(map[string]bool),
+		LastEvent:    origin.Class.Name + " vows sworn -- Bounty: " + tpl.Title,
+	})
+	return sdk.CharacterCreateResult{
+		HeroName:            name,
+		Equipped:            origin.Class.Equipped,
+		OverrideEquipped:    true,
+		StarterBag:          origin.StarterBag,
+		OverrideStarterBag:  true,
+		StarterGold:         origin.StarterGold,
+		OverrideStarterGold: true,
+		BaseHP:              100 + origin.Class.BonusHP,
+		BaseAP:              6 + origin.Class.BonusAP,
+		BaseMP:              6 + origin.Class.BonusMP,
+		CustomKV:            map[string][]byte{"hero:{hero_id}": rawHero},
+		WelcomeNotice:       origin.Class.Name + " initiated! Active bounty: " + tpl.Title + ".",
+	}, nil
+}
+
 func (s *bountyServer) ensureHero(heroID, heroName string) *heroBountyState {
 	st, ok := s.heroes[heroID]
 	if !ok {
-		st = &heroBountyState{
-			HeroID:       heroID,
-			HeroName:     heroName,
-			VisitedRooms: make(map[string]bool),
-			LastEvent:    "Accepted bounty: " + challenges[0].Title,
+		var kvSt heroBountyState
+		if foundKV, err := sdk.KVGetJSON("hero:"+heroID, &kvSt); err == nil && foundKV &&
+			(kvSt.HeroID != "" || kvSt.OriginID != "" || kvSt.OriginName != "") {
+			kvSt.HeroID = heroID
+			kvSt.Online = false
+			if kvSt.VisitedRooms == nil {
+				kvSt.VisitedRooms = make(map[string]bool)
+			}
+			if kvSt.OriginName == "" {
+				kvSt.OriginName = "Freelance"
+			}
+			st = &kvSt
+		} else {
+			st = &heroBountyState{
+				HeroID:       heroID,
+				HeroName:     heroName,
+				OriginName:   "Freelance",
+				VisitedRooms: make(map[string]bool),
+				LastEvent:    "Accepted bounty: " + challenges[0].Title,
+			}
 		}
 		s.heroes[heroID] = st
+	}
+	if st.OriginName == "" {
+		st.OriginName = "Freelance"
 	}
 	if heroName != "" {
 		st.HeroName = heroName
@@ -477,6 +639,7 @@ func (s *bountyServer) snapshot(st *heroBountyState) proto.BountySnapshot {
 		Completed:      st.Completed,
 		CompletedCount: st.CompletedCount,
 		RealmCheers:    s.realmCheers,
+		OriginName:     st.OriginName,
 		RankTitle:      rankForCompleted(st.CompletedCount),
 		LastEvent:      st.LastEvent,
 	}
@@ -566,6 +729,20 @@ func (s *bountyServer) OnPacket(senderHeroID string, channel uint16, data []byte
 			req = proto.SandboxProbeReq{Path: "/", Mode: "explore"}
 		}
 		resp := proto.RunSandboxProbes("server", req.Path, req.Mode)
+		errPreview := sdk.SetCharacterCreatePreview(sdk.CharacterCreatePreviewSpec{CameraFocus: "face"})
+		errSubmit := sdk.SubmitCharacterCreate(sdk.CharacterCreateSubmission{Name: "Escalate"})
+		blockedClientHostcall := errPreview != nil && errSubmit != nil
+		detail := fmt.Sprintf("Rejected (preview=%v, submit=%v): RoleServer blocked", errPreview != nil, errSubmit != nil)
+		if !blockedClientHostcall {
+			detail = fmt.Sprintf("UNEXPECTED CLIENT HOSTCALL SUCCEEDED (preview=%v, submit=%v)", errPreview, errSubmit)
+			resp.AllBlocked = false
+		}
+		resp.Checks = append(resp.Checks, proto.SandboxProbeCheck{
+			Name:    "Client Hostcalls",
+			Target:  "CreatePreview/SubmitCreate",
+			Blocked: blockedClientHostcall,
+			Detail:  detail,
+		})
 		sdk.SendJSONToHero(senderHeroID, proto.ChannelSandbox, resp)
 		return
 	}
