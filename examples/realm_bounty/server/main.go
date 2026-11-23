@@ -61,6 +61,8 @@ type heroBountyState struct {
 	HeroName       string
 	OriginID       string `json:"origin_id,omitempty"`
 	OriginName     string `json:"origin_name,omitempty"`
+	OathID         string `json:"oath_id,omitempty"`
+	OathName       string `json:"oath_name,omitempty"`
 	RoomX          int
 	RoomY          int
 	PosX           float32
@@ -104,11 +106,16 @@ var bountyOrigins = []bountyOriginDef{
 		Class: sdk.StarterClassSpec{
 			ID:          "bounty_prospector",
 			Name:        "Ore Prospector",
-			Description: "Gilded Vein miner carrying Stalker Drafts (+20 HP, +1 AP).",
+			Description: "Gilded Vein miner wielding a custom 3D Crystal Pickaxe (+20 HP, +1 AP).",
 			Icon:        "ha_job_mineur",
-			Equipped:    vanilla.GobballGear(),
-			BonusHP:     20,
-			BonusAP:     1,
+			Equipped: map[string]string{
+				"hat":    "hat_gobball_headgear",
+				"chest":  "chest_gobball_cuirass",
+				"boots":  "boots_gobball_sabatons",
+				"weapon": "plug_prospector_pick",
+			},
+			BonusHP: 20,
+			BonusAP: 1,
 		},
 		StartChallenge: 4,
 		StarterGold:    260,
@@ -122,10 +129,10 @@ var bountyOrigins = []bountyOriginDef{
 		Class: sdk.StarterClassSpec{
 			ID:          "bounty_stalker",
 			Name:        "Stalker Hunter",
-			Description: "Relic hunter wielding the Gilded Halberd for boss hunts (+25 HP, +1 AP).",
+			Description: "Relic hunter wielding the custom 3D Gilded Halberd & Stalker Halo (+25 HP, +1 AP).",
 			Icon:        "ha_spell_nova",
 			Equipped: map[string]string{
-				"hat":    "hat_twilight_crown",
+				"hat":    "plug_stalker_crown",
 				"chest":  "chest_twilight_hauberk",
 				"boots":  "boots_twilight_greaves",
 				"weapon": "plug_stalker_halberd",
@@ -138,6 +145,28 @@ var bountyOrigins = []bountyOriginDef{
 		StarterBag: []sdk.ItemStackSpec{
 			{ItemID: "cons_red_heart_elixir", Quantity: 2},
 			{ItemID: "plug_bounty_elixir", Quantity: 1},
+		},
+	},
+	{
+		Class: sdk.StarterClassSpec{
+			ID:          "bounty_automaton",
+			Name:        "Gilded Automaton",
+			Description: "Playable custom 3D Wakfu construct forged from living Gilded Ore (+40 HP, +1 AP).",
+			Icon:        "cube_3d",
+			ModelID:     "gilded_automaton_body",
+			ModelScale:  1.0,
+			Equipped: map[string]string{
+				"hat":    "plug_stalker_crown",
+				"weapon": "plug_stalker_halberd",
+			},
+			BonusHP: 40,
+			BonusAP: 1,
+		},
+		StartChallenge: 3,
+		StarterGold:    340,
+		StarterBag: []sdk.ItemStackSpec{
+			{ItemID: "plug_bounty_ore", Quantity: 2},
+			{ItemID: "plug_bounty_elixir", Quantity: 2},
 		},
 	},
 }
@@ -300,6 +329,8 @@ func (s *bountyServer) Init() {
 		Description:  "Crown hammered from Gilded Ore and Wakfu shards.",
 		MaxStack:     1,
 		VisualPreset: "hat_twilight_crown",
+		ModelID:      "stalker_halo_mesh",
+		ModelScale:   1.0,
 		PrimaryCol:   [4]float32{0.94, 0.74, 0.20, 1.0},
 		AccentCol:    [4]float32{0.72, 0.18, 0.16, 1.0},
 		GlowCol:      [4]float32{1.0, 0.88, 0.40, 1.0},
@@ -317,6 +348,8 @@ func (s *bountyServer) Init() {
 		Description:  "Heavy hunter polearm forged from Gilded Ore and Forged Ingots.",
 		MaxStack:     1,
 		VisualPreset: "weapon_guardian_halberd",
+		ModelID:      "gilded_halberd_mesh",
+		ModelScale:   1.0,
 		PrimaryCol:   [4]float32{0.96, 0.78, 0.24, 1.0},
 		AccentCol:    [4]float32{0.68, 0.16, 0.14, 1.0},
 		GlowCol:      [4]float32{1.0, 0.90, 0.44, 1.0},
@@ -324,6 +357,25 @@ func (s *bountyServer) Init() {
 		Strength:     40,
 		Wisdom:       15,
 		Agility:      30,
+	})
+	sdk.RegisterItem(sdk.ItemSpec{
+		ID:           "plug_prospector_pick",
+		Name:         "Crystal Pickaxe",
+		Kind:         "equipment",
+		Slot:         "weapon",
+		Rarity:       "Rare",
+		Description:  "Wakfu-edged mining pick forged for Gilded Ore Veins.",
+		MaxStack:     1,
+		VisualPreset: "weapon_guardian_halberd",
+		ModelID:      "crystal_pickaxe_mesh",
+		ModelScale:   1.0,
+		PrimaryCol:   [4]float32{0.34, 0.86, 1.0, 1.0},
+		AccentCol:    [4]float32{0.96, 0.78, 0.22, 1.0},
+		GlowCol:      [4]float32{0.58, 0.96, 1.0, 1.0},
+		Vitality:     15,
+		Strength:     28,
+		Wisdom:       18,
+		Agility:      15,
 	})
 
 	sdk.SpawnGatherNode(sdk.GatherNodeSpec{
@@ -565,7 +617,7 @@ func (s *bountyServer) OnFinalizeCharacterCreate(ev sdk.FinalizeCharacterCreateE
 		VisitedRooms: make(map[string]bool),
 		LastEvent:    origin.Class.Name + " vows sworn -- Bounty: " + tpl.Title,
 	})
-	return sdk.CharacterCreateResult{
+	res := sdk.CharacterCreateResult{
 		HeroName:            name,
 		Equipped:            origin.Class.Equipped,
 		OverrideEquipped:    true,
@@ -578,7 +630,16 @@ func (s *bountyServer) OnFinalizeCharacterCreate(ev sdk.FinalizeCharacterCreateE
 		BaseMP:              6 + origin.Class.BonusMP,
 		CustomKV:            map[string][]byte{"hero:{hero_id}": rawHero},
 		WelcomeNotice:       origin.Class.Name + " initiated! Active bounty: " + tpl.Title + ".",
-	}, nil
+	}
+	if origin.Class.ModelID != "" || origin.Class.ModelPath != "" {
+		app := ev.Appearance
+		app.CustomModelID = origin.Class.ModelID
+		app.CustomModelPath = origin.Class.ModelPath
+		app.CustomModelScale = origin.Class.ModelScale
+		res.AppearanceOverride = app
+		res.UseAppearanceOverride = true
+	}
+	return res, nil
 }
 
 func (s *bountyServer) ensureHero(heroID, heroName string) *heroBountyState {
@@ -641,6 +702,8 @@ func (s *bountyServer) snapshot(st *heroBountyState) proto.BountySnapshot {
 		CompletedCount: st.CompletedCount,
 		RealmCheers:    s.realmCheers,
 		OriginName:     st.OriginName,
+		OathID:         st.OathID,
+		OathName:       st.OathName,
 		RankTitle:      rankForCompleted(st.CompletedCount),
 		LastEvent:      st.LastEvent,
 	}
@@ -665,6 +728,9 @@ func (s *bountyServer) advanceProgress(st *heroBountyState, delta int, evMsg str
 			rewardQty := 1
 			if tpl.Kind == "hunt" {
 				rewardQty = 2
+			}
+			if st.OathID == "oath_greed" {
+				rewardQty++
 			}
 			sdk.GiveItemToHero(st.HeroID, "plug_bounty_ore", rewardQty)
 			st.LastEvent = fmt.Sprintf("Completed %s! (+%d Gilded Ore)", tpl.Title, rewardQty)
@@ -759,6 +825,35 @@ func (s *bountyServer) OnPacket(senderHeroID string, channel uint16, data []byte
 
 	switch act.Action {
 	case "sync":
+		s.pushHero(st)
+
+	case "claim_oath":
+		if st.OathID != "" {
+			s.pushHero(st)
+			return
+		}
+		switch strings.TrimSpace(act.Note) {
+		case "oath_greed":
+			st.OathID = "oath_greed"
+			st.OathName = "Oath of Greed"
+			sdk.GiveItemToHero(st.HeroID, "plug_bounty_ore", 1)
+			st.LastEvent = "Swore Oath of Greed (+1 Gilded Ore & +1 extra ore per bounty)."
+		case "oath_hunt":
+			st.OathID = "oath_hunt"
+			st.OathName = "Oath of the Hunt"
+			sdk.GiveItemToHero(st.HeroID, "plug_bounty_elixir", 1)
+			st.LastEvent = "Swore Oath of the Hunt (+1 Stalker Draft)."
+		case "oath_vanguard":
+			st.OathID = "oath_vanguard"
+			st.OathName = "Oath of the Vanguard"
+			sdk.GiveItemToHero(st.HeroID, "cons_red_heart_elixir", 2)
+			st.LastEvent = "Swore Oath of the Vanguard (+2 Red Heart Elixirs)."
+		default:
+			st.OathID = "oath_greed"
+			st.OathName = "Oath of Greed"
+			st.LastEvent = "Swore Oath of Greed (+1 extra ore per bounty)."
+		}
+		s.saveHeroState(st)
 		s.pushHero(st)
 
 	case "reroll":

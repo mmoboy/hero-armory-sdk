@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"image/png"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -41,6 +42,11 @@ func packDirectory(srcDir, outPath string) error {
 	}
 	if err := sdk.ValidateManifest(&man); err != nil {
 		return fmt.Errorf("validate manifest.json: %w", err)
+	}
+	if strings.TrimSpace(man.Icon) == "" {
+		if st, sErr := os.Stat(filepath.Join(srcDir, "icon.png")); sErr == nil && !st.IsDir() {
+			man.Icon = "icon.png"
+		}
 	}
 
 	type fileEntry struct {
@@ -100,6 +106,32 @@ func packDirectory(srcDir, outPath string) error {
 	}
 	if _, hasWasm := seen[man.EntryWasm]; !hasWasm {
 		return fmt.Errorf("missing entry wasm %q in %s", man.EntryWasm, srcDir)
+	}
+	if iconRel := strings.TrimSpace(man.Icon); iconRel != "" {
+		cleanIcon, cErr := sdk.CleanBundlePath(iconRel)
+		if cErr != nil {
+			return fmt.Errorf("invalid manifest icon path %q: %w", iconRel, cErr)
+		}
+		var iconBytes []byte
+		for _, f := range files {
+			if f.rel == cleanIcon {
+				iconBytes = f.data
+				break
+			}
+		}
+		if len(iconBytes) == 0 {
+			return fmt.Errorf("manifest icon %q not found in staged pack directory %s", cleanIcon, srcDir)
+		}
+		if len(iconBytes) > 128*1024 {
+			return fmt.Errorf("plugin icon %q exceeds 128 KiB limit (%d bytes)", cleanIcon, len(iconBytes))
+		}
+		cfg, pErr := png.DecodeConfig(bytes.NewReader(iconBytes))
+		if pErr != nil {
+			return fmt.Errorf("plugin icon %q must be a valid PNG: %w", cleanIcon, pErr)
+		}
+		if cfg.Width < 1 || cfg.Height < 1 || cfg.Width > 256 || cfg.Height > 256 {
+			return fmt.Errorf("plugin icon %q dimensions %dx%d exceed 256x256 maximum", cleanIcon, cfg.Width, cfg.Height)
+		}
 	}
 	if len(files) > sdk.MaxEntries {
 		return fmt.Errorf("too many bundle files (%d > %d)", len(files), sdk.MaxEntries)

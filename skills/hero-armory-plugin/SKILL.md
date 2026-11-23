@@ -14,8 +14,8 @@ Use this skill whenever the user asks to create, scaffold, modify, debug, compil
 When the user asks you to create a plugin (for example: `"Create a Hero Armory plugin that..."`), execute **every step end-to-end** without stopping early:
 
 1. **Locate `hero-armory-sdk`**: For standalone GitHub repositories, use `go get github.com/mmoboy/hero-armory-sdk@latest` (and `.github/workflows/release.yml` via `github.com/mmoboy/hero-armory-plugin-example`). Inside the `AlphaBox` monorepo, use `sdk/hero-armory-sdk` via a temporary `replace` or `build.sh` `go.work`.
-2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), `screenshots/` (optional showcase `.png`/`.jpg` images for verified GitHub releases), and `build.sh` (`chmod +x`).
-3. **Use safe icons/assets**: If the user did not supply a custom `.png` icon, use a built-in atlas icon name (such as `"star"`, `"shield"`, `"sword"`, `"book"`, `"compass"`) in `HUDActionSpec.Icon` and omit `icon` in `manifest.json` (or generate a valid PNG if requested).
+2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `icon.png` (root square PNG icon, max **256x256** px and <= 128 KiB, referenced as `"icon": "icon.png"` in `manifest.json`), `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), `screenshots/` (optional showcase `.png`/`.jpg` images for verified GitHub releases), and `build.sh` (`chmod +x`).
+3. **Provide root `icon.png` + safe HUD icons**: Every plugin must include a root `icon.png` (valid PNG, max 256x256 px, <= 128 KiB) copied into `$STAGE/icon.png` before packing `.gtpack` so it renders in the Plugins Library and Host Server configuration screens. For in-game `HUDActionSpec.Icon`, use a built-in atlas icon name (such as `"star"`, `"shield"`, `"sword"`, `"book"`, `"compass"`).
 4. **Implement `proto/`, `server/`, and `client/`** following all rules in Sections 1-5 below.
 5. **Compile and pack**: Run `./build.sh` to produce `dist/server_plugin.wasm` and `dist/client_plugin.gtpack`, fixing any compiler or packer errors before finishing.
 6. **Verify**: Confirm both `dist/server_plugin.wasm` and `dist/client_plugin.gtpack` exist and report the exact `cmd/pack` SHA-256 output.
@@ -51,6 +51,7 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
 <plugin-dir>/
 +-- go.mod
 +-- manifest.json
++-- icon.png                # required plugin icon at project root (PNG, max 256x256 px, <= 128 KiB, packed into .gtpack)
 +-- build.sh
 +-- assets/                 # optional runtime files packed into client_plugin.gtpack: .png, .wav, .ogg, .glb, .json
 +-- screenshots/            # optional showcase .png/.jpg images displayed from verified GitHub commits (not packed into .gtpack)
@@ -91,6 +92,7 @@ replace github.com/mmoboy/hero-armory-sdk => ../../sdk/hero-armory-sdk
   "author": "Author Name",
   "description": "Short ASCII description (max 240 chars).",
   "entry_wasm": "client.wasm",
+  "icon": "icon.png",
   "permissions": ["hud_actions", "overlay_ui", "packets", "audio"],
   "required": false
 }
@@ -118,6 +120,9 @@ GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build \
   -o "$STAGE/client.wasm" ./client
 
 cp "$DIR/manifest.json" "$STAGE/manifest.json"
+if [[ -f "$DIR/icon.png" ]]; then
+  cp "$DIR/icon.png" "$STAGE/icon.png"
+fi
 if [ -d "$DIR/assets" ] && [ -n "$(ls -A "$DIR/assets" 2>/dev/null)" ]; then
   cp -r "$DIR/assets/." "$STAGE/assets/"
 fi

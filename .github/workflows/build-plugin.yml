@@ -145,6 +145,9 @@ jobs:
             -o "$STAGE/client.wasm" ./client
 
           cp "$WORK_ROOT/plugin/manifest.json" "$STAGE/manifest.json"
+          if [[ -f "$WORK_ROOT/plugin/icon.png" ]]; then
+            cp "$WORK_ROOT/plugin/icon.png" "$STAGE/icon.png"
+          fi
           if [[ -d "$WORK_ROOT/plugin/assets" ]]; then
             cp -r "$WORK_ROOT/plugin/assets" "$STAGE/assets"
           fi

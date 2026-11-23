@@ -17,11 +17,13 @@ const (
 
 type bountyClient struct {
 	sdk.BaseClientPlugin
-	hero      sdk.HeroSnapshot
-	view      string
-	cheerNote string
-	probePath string
-	state     proto.BountySnapshot
+	hero           sdk.HeroSnapshot
+	view           string
+	cheerNote      string
+	probePath      string
+	selectedOath   string
+	inCreateScreen bool
+	state          proto.BountySnapshot
 
 	clientAudit *proto.SandboxProbeResp
 	serverAudit *proto.SandboxProbeResp
@@ -30,7 +32,8 @@ type bountyClient struct {
 
 func newBountyClient() *bountyClient {
 	return &bountyClient{
-		probePath: "/",
+		probePath:    "/",
+		selectedOath: "oath_greed",
 		state: proto.BountySnapshot{
 			Title:       "Chunk Explorer",
 			Description: "Explore 3 different rooms around the realm.",
@@ -47,6 +50,9 @@ func (c *bountyClient) Init() {
 	registerCustomRealmMeshes()
 	c.probePath = sdk.PrefGetString("sandbox.last_path", "/")
 	c.cheerNote = sdk.PrefGetString("bounty.last_note", "")
+	if savedOath := strings.TrimSpace(sdk.PrefGetString("bounty.selected_oath", "")); savedOath != "" {
+		c.selectedOath = savedOath
+	}
 	c.runClientAudit(c.probePath, "explore")
 }
 
@@ -179,8 +185,12 @@ func (c *bountyClient) renderBountyOverlay() {
 	if origin == "" {
 		origin = "Freelance"
 	}
-	statsLine := fmt.Sprintf("Origin: %s  |  Progress: %d/%d  |  Done: %d (%s)  |  Cheers: %d",
-		origin, c.state.Progress, c.state.Target, c.state.CompletedCount, c.state.RankTitle, c.state.RealmCheers)
+	oath := c.state.OathName
+	if oath == "" {
+		oath = "None"
+	}
+	statsLine := fmt.Sprintf("Origin: %s  |  Oath: %s  |  Progress: %d/%d  |  Done: %d (%s)  |  Cheers: %d",
+		origin, oath, c.state.Progress, c.state.Target, c.state.CompletedCount, c.state.RankTitle, c.state.RealmCheers)
 
 	sdk.SetOverlay(sdk.UIPanelSpec{
 		ID:          "bounty_board",
@@ -421,12 +431,94 @@ func buildAuditCheckCards(prefix string, checks []proto.SandboxProbeCheck) []sdk
 	return cards
 }
 
+func (c *bountyClient) renderGuildOathOverlay() {
+	oathDesc := "Earn +1 bonus Gilded Ore on hero initiation and +1 extra Gilded Ore on every completed bounty."
+	switch c.selectedOath {
+	case "oath_hunt":
+		oathDesc = "Begin your hunt with an extra Stalker Draft tonic to challenge the Gilded Stalker immediately."
+	case "oath_vanguard":
+		oathDesc = "Receive +2 Red Heart Elixirs in your starter satchel for sustained frontline dungeon delves."
+	}
+	varFor := func(id string) string {
+		if c.selectedOath == id {
+			return "emerald"
+		}
+		return "default"
+	}
+
+	sdk.SetOverlay(sdk.UIPanelSpec{
+		ID:          "bounty_oath_panel",
+		Visible:     true,
+		Anchor:      "top_left",
+		OffsetX:     16,
+		OffsetY:     82,
+		Width:       292,
+		Padding:     11,
+		Gap:         7,
+		BgColor:     [4]float32{0.05, 0.08, 0.14, 0.94},
+		BorderColor: [4]float32{0.92, 0.72, 0.24, 0.86},
+		BorderWidth: 1.5,
+		Radius:      10.0,
+		Root: &sdk.UINodeSpec{
+			Kind: "col",
+			Gap:  7,
+			Children: []sdk.UINodeSpec{
+				{
+					Kind: "row",
+					Gap:  7,
+					Children: []sdk.UINodeSpec{
+						{Kind: "image", AssetPath: "assets/bounty_icon.png", Width: 22, Height: 22},
+						{Kind: "label", Text: "BOUNTY GUILD OATH", TextSize: 12.8, FlexGrow: 1, Color: [4]float32{0.98, 0.86, 0.44, 1.0}},
+					},
+				},
+				{
+					Kind:     "label",
+					Text:     "Swear a Guild Oath alongside your Origin. Tip: Pick 'Gilded Automaton' on the right to preview the custom 3D Wakfu construct!",
+					TextSize: 10.2,
+					Wrap:     true,
+					Color:    [4]float32{0.76, 0.86, 0.96, 1.0},
+				},
+				{Kind: "button", ID: "bounty_oath_greed", Text: "Oath of Greed (+Bonus Ore)", Variant: varFor("oath_greed"), Height: 28, TextSize: 10.8},
+				{Kind: "button", ID: "bounty_oath_hunt", Text: "Oath of the Hunt (+Stalker Draft)", Variant: varFor("oath_hunt"), Height: 28, TextSize: 10.8},
+				{Kind: "button", ID: "bounty_oath_vanguard", Text: "Oath of the Vanguard (+2 Elixirs)", Variant: varFor("oath_vanguard"), Height: 28, TextSize: 10.8},
+				{
+					Kind:        "panel",
+					Padding:     8,
+					Color:       [4]float32{0.08, 0.12, 0.20, 0.92},
+					BorderColor: [4]float32{0.26, 0.56, 0.78, 0.65},
+					Radius:      6.0,
+					Children: []sdk.UINodeSpec{
+						{Kind: "label", Text: oathDesc, TextSize: 10.2, Wrap: true, Color: [4]float32{0.66, 0.94, 0.78, 1.0}},
+					},
+				},
+			},
+		},
+	})
+}
+
+func (c *bountyClient) OnEnterCharacterCreate(ctx sdk.CharacterCreateContext) {
+	c.inCreateScreen = true
+	if c.selectedOath == "" {
+		c.selectedOath = "oath_greed"
+	}
+	c.renderGuildOathOverlay()
+}
+
 func (c *bountyClient) OnEnterWorld(self sdk.HeroSnapshot) {
+	c.inCreateScreen = false
 	c.hero = self
 	c.view = viewClosed
+	sdk.ClearOverlay()
 	c.runClientAudit(c.probePath, "explore")
 	c.syncHUDButton()
-	sdk.SendJSONToServer(proto.ChannelBounty, proto.ClientAction{Action: "sync"})
+	if c.selectedOath != "" {
+		sdk.SendJSONToServer(proto.ChannelBounty, proto.ClientAction{
+			Action: "claim_oath",
+			Note:   c.selectedOath,
+		})
+	} else {
+		sdk.SendJSONToServer(proto.ChannelBounty, proto.ClientAction{Action: "sync"})
+	}
 	c.requestServerAudit(c.probePath, "explore")
 }
 
@@ -494,6 +586,12 @@ func (c *bountyClient) OnUIEvent(ev sdk.UIClickEvent) {
 	}
 
 	switch ev.ControlID {
+	case "bounty_oath_greed", "bounty_oath_hunt", "bounty_oath_vanguard":
+		c.selectedOath = strings.TrimPrefix(ev.ControlID, "bounty_")
+		_ = sdk.PrefSet("bounty.selected_oath", c.selectedOath)
+		if c.inCreateScreen {
+			c.renderGuildOathOverlay()
+		}
 	case "bounty_toggle":
 		if c.view == viewBounty {
 			c.view = viewClosed
