@@ -44,7 +44,7 @@ func packDirectory(srcDir, outPath string) error {
 		return fmt.Errorf("validate manifest.json: %w", err)
 	}
 	if strings.TrimSpace(man.Icon) == "" {
-		if st, sErr := os.Stat(filepath.Join(srcDir, "icon.png")); sErr == nil && !st.IsDir() {
+		if st, sErr := os.Lstat(filepath.Join(srcDir, "icon.png")); sErr == nil && st.Mode().IsRegular() {
 			man.Icon = "icon.png"
 		}
 	}
@@ -66,8 +66,14 @@ func packDirectory(srcDir, outPath string) error {
 		if walkErr != nil {
 			return walkErr
 		}
+		if d.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symlinks are not allowed in plugin bundles: %s", p)
+		}
 		if d.IsDir() {
 			return nil
+		}
+		if !d.Type().IsRegular() {
+			return fmt.Errorf("non-regular file is not allowed in plugin bundles: %s", p)
 		}
 		relFS, err := filepath.Rel(srcDir, p)
 		if err != nil {
@@ -89,6 +95,13 @@ func packDirectory(srcDir, outPath string) error {
 		if _, dup := seen[cleanRel]; dup {
 			return nil
 		}
+		info, iErr := d.Info()
+		if iErr != nil {
+			return iErr
+		}
+		if info.Size() < 0 || totalRaw+info.Size() > sdk.MaxExtractedBytes {
+			return fmt.Errorf("extracted bundle exceeds %d bytes", sdk.MaxExtractedBytes)
+		}
 		data, rErr := os.ReadFile(p)
 		if rErr != nil {
 			return rErr
@@ -104,8 +117,18 @@ func packDirectory(srcDir, outPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, hasWasm := seen[man.EntryWasm]; !hasWasm {
+	var entryWasmBytes []byte
+	for _, f := range files {
+		if f.rel == man.EntryWasm {
+			entryWasmBytes = f.data
+			break
+		}
+	}
+	if len(entryWasmBytes) == 0 {
 		return fmt.Errorf("missing entry wasm %q in %s", man.EntryWasm, srcDir)
+	}
+	if len(entryWasmBytes) < 4 || string(entryWasmBytes[:4]) != "\x00asm" {
+		return fmt.Errorf("entry wasm %q is not a valid WebAssembly module", man.EntryWasm)
 	}
 	if iconRel := strings.TrimSpace(man.Icon); iconRel != "" {
 		cleanIcon, cErr := sdk.CleanBundlePath(iconRel)

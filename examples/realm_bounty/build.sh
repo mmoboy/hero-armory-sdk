@@ -11,13 +11,13 @@ mkdir -p "$STAGE/assets"
 echo "[realm_bounty] Building server_plugin.wasm..."
 (
   cd "$DIR"
-  GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -ldflags="-s -w" -o "$DIR/dist/server_plugin.wasm" ./server
+  GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o "$DIR/dist/server_plugin.wasm" ./server
 )
 
 echo "[realm_bounty] Building client.wasm..."
 (
   cd "$DIR"
-  GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -ldflags="-s -w" -o "$STAGE/client.wasm" ./client
+  GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o "$STAGE/client.wasm" ./client
 )
 cp "$DIR/manifest.json" "$STAGE/manifest.json"
 if [[ -f "$DIR/icon.png" ]]; then

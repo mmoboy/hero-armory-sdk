@@ -143,6 +143,9 @@ func IsValidContentID(id string) bool {
 func SanitizeASCII(raw string, maxLen int) string {
 	var b strings.Builder
 	for i := 0; i < len(raw); i++ {
+		if maxLen > 0 && b.Len() >= maxLen {
+			break
+		}
 		c := raw[i]
 		if c == '\r' || c == '\t' {
 			b.WriteByte(' ')
@@ -154,9 +157,6 @@ func SanitizeASCII(raw string, maxLen int) string {
 		}
 		if c >= 0x20 && c <= 0x7e {
 			b.WriteByte(c)
-			if maxLen > 0 && b.Len() >= maxLen {
-				break
-			}
 		}
 	}
 	return strings.TrimSpace(b.String())
@@ -165,8 +165,13 @@ func SanitizeASCII(raw string, maxLen int) string {
 // CleanBundlePath validates one relative path inside a .gtpack archive.
 func CleanBundlePath(raw string) (string, error) {
 	trimmed := strings.ReplaceAll(strings.TrimSpace(raw), "\\", "/")
-	if trimmed == "" || strings.HasPrefix(trimmed, "/") || strings.Contains(trimmed, "..") {
+	if trimmed == "" || strings.HasPrefix(trimmed, "/") || strings.Contains(trimmed, "..") || strings.ContainsAny(trimmed, ":\x00") {
 		return "", fmt.Errorf("invalid bundle path %q", raw)
+	}
+	for i := 0; i < len(trimmed); i++ {
+		if trimmed[i] < 0x20 || trimmed[i] > 0x7e {
+			return "", fmt.Errorf("invalid bundle path %q", raw)
+		}
 	}
 	cleaned := path.Clean(trimmed)
 	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") || strings.HasPrefix(cleaned, "/") {

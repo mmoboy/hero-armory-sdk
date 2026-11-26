@@ -98,13 +98,14 @@ func TestOverlayValidationAndPatch(t *testing.T) {
 	if rc := sdk.SetOverlay(sdk.UIPanelSpec{ID: "hub", Visible: true, Root: &root}); rc != 0 {
 		t.Fatalf("SetOverlay rc=%d", rc)
 	}
+	hidden := true
 	err := sdk.PatchOverlay("hub",
-		sdk.UINodePatch{ID: "timer", Text: sdk.PatchText("4:59")},
+		sdk.UINodePatch{ID: "timer", Text: sdk.PatchText("4:59"), Hidden: &hidden},
 		sdk.UINodePatch{ID: "bar", Progress: sdk.PatchProgress(0.5)})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if h.FindNode("timer").Text != "4:59" || h.FindNode("bar").Progress != 0.5 {
+	if h.FindNode("timer").Text != "4:59" || !h.FindNode("timer").Hidden || h.FindNode("bar").Progress != 0.5 {
 		t.Fatalf("patch not applied: %s", h.OverlayText())
 	}
 	if err := sdk.PatchOverlay("other", sdk.UINodePatch{ID: "timer"}); !errors.Is(err, sdk.ErrNotFound) {

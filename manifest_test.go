@@ -18,10 +18,13 @@ func TestValidateManifestAndPaths(t *testing.T) {
 		t.Fatalf("expected default entry/sdk_version, got %+v", m)
 	}
 
-	for _, bad := range []string{"../secret.wasm", "/etc/passwd", "hack.exe", "a/../../b.png"} {
+	for _, bad := range []string{"../secret.wasm", "/etc/passwd", "hack.exe", "a/../../b.png", "C:evil.wasm", "a:b.png", "a\x00b.png", "a\x07b.png"} {
 		if _, err := CleanBundlePath(bad); err == nil {
 			t.Fatalf("expected CleanBundlePath(%q) to fail", bad)
 		}
+	}
+	if got := SanitizeASCII("\n\n\n\n\n\n\n\n\n\nabc", 5); len(got) > 5 {
+		t.Fatalf("expected SanitizeASCII newline cap <= 5, got len=%d (%q)", len(got), got)
 	}
 	if got, err := CleanBundlePath("assets/trophy.png"); err != nil || got != "assets/trophy.png" {
 		t.Fatalf("expected valid asset path, got %q err=%v", got, err)

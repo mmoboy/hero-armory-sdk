@@ -59,8 +59,8 @@ to publish it to the community catalog with a **Source-Verified** badge.
 ## Local Development Build
 
 ```bash
-GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -ldflags="-s -w" -o dist/server_plugin.wasm ./server
-GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -ldflags="-s -w" -o dist/stage/client.wasm ./client
+GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o dist/server_plugin.wasm ./server
+GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" -o dist/stage/client.wasm ./client
 cp manifest.json dist/stage/manifest.json
 cp icon.png dist/stage/icon.png  # root plugin icon (PNG, max 256x256 px, <= 128 KiB)
 cp -r assets dist/stage/assets   # if present

@@ -98,7 +98,7 @@ jobs:
           if not re.fullmatch(r"[a-z0-9_-]{3,40}", pid):
               sys.stderr.write(f"Invalid manifest id: {pid!r}\n")
               sys.exit(1)
-          if not ver or len(ver) > 24:
+          if not re.fullmatch(r"[A-Za-z0-9._-]{1,24}", ver):
               sys.stderr.write(f"Invalid manifest version: {ver!r}\n")
               sys.exit(1)
           if int(man.get("sdk_version", 1)) != 1:
@@ -109,6 +109,10 @@ jobs:
           plugin_id="$(python3 -c 'import json; print(json.load(open("manifest.json"))["id"].strip())')"
           man_ver="$(python3 -c 'import json; print(json.load(open("manifest.json"))["version"].strip())')"
           tag_name="${GITHUB_REF_NAME}"
+          if [[ ! "$tag_name" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then
+            echo "Invalid git ref name '$tag_name'" >&2
+            exit 1
+          fi
           if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
             norm_tag="${tag_name#v}"
             if [[ "$norm_tag" != "$man_ver" ]]; then
@@ -121,6 +125,9 @@ jobs:
           echo "tag=$tag_name" >> "$GITHUB_OUTPUT"
 
       - name: Compile server_plugin.wasm and client_plugin.gtpack
+        env:
+          PLUGIN_ID: ${{ steps.meta.outputs.plugin_id }}
+          PLUGIN_TAG: ${{ steps.meta.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
@@ -144,12 +151,12 @@ jobs:
             go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
             -o "$STAGE/client.wasm" ./client
 
-          cp "$WORK_ROOT/plugin/manifest.json" "$STAGE/manifest.json"
-          if [[ -f "$WORK_ROOT/plugin/icon.png" ]]; then
-            cp "$WORK_ROOT/plugin/icon.png" "$STAGE/icon.png"
+          cp -P "$WORK_ROOT/plugin/manifest.json" "$STAGE/manifest.json"
+          if [[ -f "$WORK_ROOT/plugin/icon.png" && ! -L "$WORK_ROOT/plugin/icon.png" ]]; then
+            cp -P "$WORK_ROOT/plugin/icon.png" "$STAGE/icon.png"
           fi
-          if [[ -d "$WORK_ROOT/plugin/assets" ]]; then
-            cp -r "$WORK_ROOT/plugin/assets" "$STAGE/assets"
+          if [[ -d "$WORK_ROOT/plugin/assets" && ! -L "$WORK_ROOT/plugin/assets" ]]; then
+            cp -RP "$WORK_ROOT/plugin/assets" "$STAGE/assets"
           fi
 
           (
@@ -157,10 +164,10 @@ jobs:
             GOWORK=off go run ./cmd/pack -dir "$STAGE" -out "$DIST/client_plugin.gtpack"
           )
 
-          zip_name="${{ steps.meta.outputs.plugin_id }}-${{ steps.meta.outputs.tag }}-realm-plugin.zip"
+          zip_name="${PLUGIN_ID}-${PLUGIN_TAG}-realm-plugin.zip"
           (
             cd "$DIST"
-            cp "$WORK_ROOT/plugin/manifest.json" manifest.json
+            cp -P "$WORK_ROOT/plugin/manifest.json" manifest.json
             zip -q "$zip_name" server_plugin.wasm client_plugin.gtpack manifest.json
             rm -f manifest.json
             sha256sum server_plugin.wasm client_plugin.gtpack "$zip_name" > SHA256SUMS.txt
@@ -180,11 +187,13 @@ jobs:
         if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
+          PLUGIN_ID: ${{ steps.meta.outputs.plugin_id }}
+          PLUGIN_TAG: ${{ steps.meta.outputs.tag }}
         shell: bash
         run: |
           set -euo pipefail
-          TAG="${{ steps.meta.outputs.tag }}"
-          ZIP_NAME="${{ steps.meta.outputs.plugin_id }}-${TAG}-realm-plugin.zip"
+          TAG="${PLUGIN_TAG}"
+          ZIP_NAME="${PLUGIN_ID}-${TAG}-realm-plugin.zip"
           cd plugin
           if gh release view "$TAG" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "$TAG" \
@@ -202,7 +211,7 @@ jobs:
               ../_dist/SHA256SUMS.txt \
               --repo "${GITHUB_REPOSITORY}" \
               --verify-tag \
-              --title "${{ steps.meta.outputs.plugin_id }} $TAG" \
+              --title "${PLUGIN_ID} $TAG" \
               --notes "Hero Armory plugin release built and attested by mmoboy/hero-armory-sdk."
           fi
 

@@ -330,6 +330,9 @@ func (h *Host) HostCall(name string, payload []byte) (int32, []byte) {
 			if pt.Color != nil {
 				n.Color = *pt.Color
 			}
+			if pt.Hidden != nil {
+				n.Hidden = *pt.Hidden
+			}
 		}
 		h.Patches = append(h.Patches, p)
 	case "ui_open_codex":

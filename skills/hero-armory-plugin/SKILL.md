@@ -13,7 +13,7 @@ Use this skill whenever the user asks to create, scaffold, modify, debug, compil
 
 When the user asks you to create a plugin (for example: `"Create a Hero Armory plugin that..."`), execute **every step end-to-end** without stopping early:
 
-1. **Locate `hero-armory-sdk`**: For standalone GitHub repositories, use `go get github.com/mmoboy/hero-armory-sdk@latest` (and `.github/workflows/release.yml` via `github.com/mmoboy/hero-armory-plugin-example`). Inside the `AlphaBox` monorepo, use `sdk/hero-armory-sdk` via a temporary `replace` or `build.sh` `go.work`.
+1. **Locate `hero-armory-sdk`**: For standalone GitHub repositories, use `go get github.com/mmoboy/hero-armory-sdk@latest` (and `.github/workflows/release.yml` via `github.com/mmoboy/hero-armory-plugin-example`). For local offline SDK checkouts, use a temporary `replace` directive or a `go.work` file pointing at your local `hero-armory-sdk` clone.
 2. **Scaffold the plugin directory**: Create `go.mod`, `manifest.json`, `icon.png` (root square PNG icon, max **256x256** px and <= 128 KiB, referenced as `"icon": "icon.png"` in `manifest.json`), `proto/messages.go`, `server/main.go`, `client/main.go`, `assets/` (if needed), `screenshots/` (optional showcase `.png`/`.jpg` images for verified GitHub releases), and `build.sh` (`chmod +x`).
 3. **Provide root `icon.png` + safe HUD icons**: Every plugin must include a root `icon.png` (valid PNG, max 256x256 px, <= 128 KiB) copied into `$STAGE/icon.png` before packing `.gtpack` so it renders in the Plugins Library and Host Server configuration screens. For in-game `HUDActionSpec.Icon`, use a built-in atlas icon name (such as `"star"`, `"shield"`, `"sword"`, `"book"`, `"compass"`).
 4. **Implement `proto/`, `server/`, and `client/`** following all rules in Sections 1-5 below.
@@ -28,7 +28,7 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
 1. **Strict ASCII only**: Hero Armory uses a custom Latin-only TrueType glyph atlas. Never put emojis or non-ASCII Unicode (arrows, bullets, curly quotes, em-dashes) in UI labels, item/monster names, notices, Codex text, Go source, or `manifest.json`.
 2. **Go 1.24+ pure Go to `wasip1/wasm`**:
    - Compile BOTH `server` and `client` with:
-     `GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -ldflags="-s -w" ...`
+     `GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" ...`
    - Never omit `-buildmode=c-shared` (host ABI exports depend on it).
    - Register the plugin in `func init()` via `sdk.RegisterServer(...)` or `sdk.RegisterClient(...)`, and keep `func main() {}` empty.
 3. **Strict VM Role Separation**:
@@ -75,7 +75,7 @@ go 1.24
 require github.com/mmoboy/hero-armory-sdk v1.0.0
 ```
 
-When developing offline inside the `AlphaBox` monorepo (not committed to a Source-Verified GitHub release repo), temporarily point at local `sdk/hero-armory-sdk`:
+When developing offline against a local `hero-armory-sdk` checkout (not committed to a Source-Verified GitHub release repo), temporarily point at your local SDK directory:
 
 ```go
 replace github.com/mmoboy/hero-armory-sdk => ../../sdk/hero-armory-sdk
@@ -112,11 +112,11 @@ rm -rf "$STAGE"
 mkdir -p "$STAGE/assets"
 
 GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build \
-  -buildmode=c-shared -ldflags="-s -w" \
+  -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
   -o "$DIR/dist/server_plugin.wasm" ./server
 
 GOOS=wasip1 GOARCH=wasm CGO_ENABLED=0 go build \
-  -buildmode=c-shared -ldflags="-s -w" \
+  -buildmode=c-shared -trimpath -buildvcs=false -ldflags="-s -w" \
   -o "$STAGE/client.wasm" ./client
 
 cp "$DIR/manifest.json" "$STAGE/manifest.json"
