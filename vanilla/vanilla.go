@@ -8,13 +8,15 @@ import (
 )
 
 // RegisterAll registers the full Sanctuary world: 25 rooms, all items & starter
-// configuration, jobs/recipes/gather nodes, tactical skills & monsters, and NPCs.
+// configuration, jobs/recipes/gather nodes, tactical skills & monsters, NPCs,
+// and Codex guide entries.
 func RegisterAll() {
 	RegisterRooms()
 	RegisterItems()
 	RegisterJobsAndGatherNodes()
 	RegisterCombat()
 	RegisterNPCs()
+	RegisterCodex()
 }
 
 // KokiriGear returns the Kokiri Guardian 8-slot equipment ID map.

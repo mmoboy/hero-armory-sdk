@@ -18,7 +18,7 @@ type HUDActionSpec struct {
 type UIPanelSpec struct {
 	ID          string      `json:"id"`
 	Visible     bool        `json:"visible"`
-	Anchor      string      `json:"anchor,omitempty"` // "top_left", "top_right", "bottom_left", "bottom_right", "center"
+	Anchor      string      `json:"anchor,omitempty"` // "top_left", "top_center", "top_right", "bottom_left", "bottom_center", "bottom_right", "center"
 	OffsetX     float32     `json:"offset_x,omitempty"`
 	OffsetY     float32     `json:"offset_y,omitempty"`
 	Width       float32     `json:"width,omitempty"`
@@ -117,6 +117,16 @@ func ProgressNode(id string, progress float32, height float32, fillColor [4]floa
 // ImageNode creates a sandboxed PNG texture view loaded from inside the .gtpack archive.
 func ImageNode(id, assetPath string, width, height float32) UINodeSpec {
 	return UINodeSpec{Kind: "image", ID: id, AssetPath: assetPath, Width: width, Height: height}
+}
+
+// IconNode creates an atlas vector icon node.
+func IconNode(id, icon string, size float32) UINodeSpec {
+	return UINodeSpec{Kind: "icon", ID: id, Icon: icon, Width: size, Height: size}
+}
+
+// ScrollNode creates a vertically scrollable container node.
+func ScrollNode(id string, height, gap float32, children ...UINodeSpec) UINodeSpec {
+	return UINodeSpec{Kind: "scroll", ID: id, Height: height, Gap: gap, PercentWidth: 100, Children: children}
 }
 
 // Pointer helpers for UINodePatch fields.

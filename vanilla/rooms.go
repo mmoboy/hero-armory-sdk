@@ -396,14 +396,165 @@ func Rooms() []sdk.RoomSpec {
 	out := make([]sdk.RoomSpec, 0, 25)
 	for y := -2; y <= 2; y++ {
 		for x := -2; x <= 2; x++ {
-			if sp, ok := inner[[2]int{x, y}]; ok {
-				out = append(out, sp)
+			var sp sdk.RoomSpec
+			if s, ok := inner[[2]int{x, y}]; ok {
+				sp = s
 			} else {
-				out = append(out, buildOuterRoomSpec(x, y))
+				sp = buildOuterRoomSpec(x, y)
 			}
+			enrichSanctuaryRoom(&sp)
+			out = append(out, sp)
 		}
 	}
 	return out
+}
+
+func enrichSanctuaryRoom(r *sdk.RoomSpec) {
+	switch r.Biome {
+	case "sanctuary":
+		r.MapColor = [3]float32{0.24, 0.74, 0.92}
+		r.MapIcon = "star"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:    [3]float32{0.16, 0.38, 0.68},
+			SkyHorizon:   [3]float32{0.58, 0.78, 0.92},
+			FogColor:     [3]float32{0.52, 0.70, 0.84},
+			FogDensity:   0.008,
+			SunColor:     [3]float32{1.00, 0.95, 0.84},
+			SunIntensity: 1.15,
+			SunPitch:     48,
+			SunYaw:       35,
+			AmbientColor: [3]float32{0.44, 0.56, 0.68},
+			Weather:      "none",
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "courtyard_beacon", X: 0, Y: 4.5, Z: 0, Color: [3]float32{0.35, 0.88, 1.00}, Intensity: 1.4, Range: 16, PulseSpeed: 0.8},
+		}
+		r.Emitters = []sdk.RoomEmitterSpec{
+			{ID: "courtyard_motes", Kind: "sparkles", X: 0, Y: 2.2, Z: 0, Spread: [3]float32{14, 2.5, 14}, Color: [4]float32{0.55, 0.94, 1.00, 0.85}, Rate: 8, Size: 0.16, Speed: 0.45, Lifetime: 3.5},
+		}
+	case "emerald_glade":
+		r.MapColor = [3]float32{0.22, 0.76, 0.38}
+		r.MapIcon = "leaf"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:        [3]float32{0.14, 0.42, 0.46},
+			SkyHorizon:       [3]float32{0.48, 0.80, 0.62},
+			FogColor:         [3]float32{0.34, 0.62, 0.46},
+			FogDensity:       0.012,
+			SunColor:         [3]float32{0.96, 1.00, 0.82},
+			SunIntensity:     1.10,
+			SunPitch:         44,
+			SunYaw:           20,
+			AmbientColor:     [3]float32{0.32, 0.54, 0.38},
+			Weather:          "spores",
+			WeatherColor:     [4]float32{0.52, 1.00, 0.58, 0.85},
+			WeatherIntensity: 0.45,
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "glade_canopy", X: 0, Y: 3.6, Z: 0, Color: [3]float32{0.36, 0.96, 0.52}, Intensity: 1.2, Range: 14, PulseSpeed: 0.6},
+		}
+		r.Emitters = []sdk.RoomEmitterSpec{
+			{ID: "glade_fireflies", Kind: "fireflies", X: 0, Y: 1.8, Z: 0, Spread: [3]float32{16, 2.0, 16}, Color: [4]float32{0.68, 1.00, 0.44, 0.9}, Rate: 10, Size: 0.18, Speed: 0.55, Lifetime: 4.0},
+		}
+	case "astral_forge":
+		r.MapColor = [3]float32{0.22, 0.62, 0.96}
+		r.MapIcon = "compass"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:        [3]float32{0.05, 0.09, 0.24},
+			SkyHorizon:       [3]float32{0.14, 0.32, 0.56},
+			FogColor:         [3]float32{0.12, 0.24, 0.44},
+			FogDensity:       0.014,
+			SunColor:         [3]float32{0.62, 0.88, 1.00},
+			SunIntensity:     0.95,
+			SunPitch:         52,
+			SunYaw:           -40,
+			AmbientColor:     [3]float32{0.22, 0.34, 0.54},
+			Weather:          "starfall",
+			WeatherColor:     [4]float32{0.40, 0.90, 1.00, 0.9},
+			WeatherIntensity: 0.40,
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "astral_core", X: 0, Y: 4.0, Z: 0, Color: [3]float32{0.28, 0.86, 1.00}, Intensity: 1.6, Range: 15, PulseSpeed: 1.1},
+		}
+		r.Emitters = []sdk.RoomEmitterSpec{
+			{ID: "astral_sparks", Kind: "sparkles", X: 0, Y: 2.0, Z: 0, Spread: [3]float32{14, 2.5, 14}, Color: [4]float32{0.38, 0.90, 1.00, 0.9}, Rate: 11, Size: 0.16, Speed: 0.65, Lifetime: 3.2},
+		}
+		if r.X == 1 && r.Y == 1 {
+			r.Liquids = []sdk.RoomLiquidSpec{
+				{ID: "observatory_aether", Kind: "aether", MinX: -28, MaxX: 28, MinZ: -28, MaxZ: 28, Y: 0.08, Color: [4]float32{0.18, 0.66, 0.96, 0.72}, Opacity: 0.72, WaveSpeed: 1.1, EmissiveIntensity: 0.55},
+			}
+		}
+	case "sunset_arena":
+		r.MapColor = [3]float32{0.92, 0.56, 0.22}
+		r.MapIcon = "sword"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:        [3]float32{0.34, 0.16, 0.24},
+			SkyHorizon:       [3]float32{0.94, 0.52, 0.24},
+			FogColor:         [3]float32{0.68, 0.38, 0.22},
+			FogDensity:       0.011,
+			SunColor:         [3]float32{1.00, 0.74, 0.42},
+			SunIntensity:     1.20,
+			SunPitch:         22,
+			SunYaw:           -65,
+			AmbientColor:     [3]float32{0.52, 0.34, 0.24},
+			Weather:          "ash",
+			WeatherColor:     [4]float32{0.98, 0.72, 0.38, 0.75},
+			WeatherIntensity: 0.30,
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "arena_brazier", X: 0, Y: 3.2, Z: 0, Color: [3]float32{1.00, 0.62, 0.22}, Intensity: 1.5, Range: 15, PulseSpeed: 1.8},
+		}
+	case "cindervault":
+		r.MapColor = [3]float32{0.88, 0.30, 0.20}
+		r.MapIcon = "shield"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:        [3]float32{0.18, 0.05, 0.06},
+			SkyHorizon:       [3]float32{0.62, 0.20, 0.10},
+			FogColor:         [3]float32{0.38, 0.14, 0.10},
+			FogDensity:       0.018,
+			SunColor:         [3]float32{1.00, 0.48, 0.24},
+			SunIntensity:     1.05,
+			SunPitch:         26,
+			SunYaw:           -110,
+			AmbientColor:     [3]float32{0.42, 0.18, 0.14},
+			Weather:          "embers",
+			WeatherColor:     [4]float32{1.00, 0.44, 0.14, 0.95},
+			WeatherIntensity: 0.65,
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "cinder_hearth", X: 0, Y: 3.0, Z: 0, Color: [3]float32{1.00, 0.40, 0.14}, Intensity: 1.8, Range: 16, PulseSpeed: 2.2},
+		}
+		r.Emitters = []sdk.RoomEmitterSpec{
+			{ID: "cinder_embers", Kind: "embers", X: 0, Y: 0.8, Z: 0, Spread: [3]float32{16, 1.5, 16}, Color: [4]float32{1.00, 0.46, 0.16, 0.95}, Rate: 14, Size: 0.18, Speed: 1.1, Lifetime: 3.0},
+		}
+		if r.X == -1 && r.Y == -1 || (r.X == -2 && r.Y == -2) {
+			r.Liquids = []sdk.RoomLiquidSpec{
+				{ID: "caldera_lava", Kind: "lava", MinX: -28, MaxX: 28, MinZ: -28, MaxZ: 28, Y: 0.05, Color: [4]float32{0.96, 0.30, 0.08, 0.92}, Opacity: 0.92, WaveSpeed: 0.8, EmissiveIntensity: 1.4},
+			}
+		}
+	default: // "twilight"
+		r.MapColor = [3]float32{0.58, 0.36, 0.88}
+		r.MapIcon = "book"
+		r.Atmosphere = &sdk.RoomAtmosphereSpec{
+			SkyZenith:        [3]float32{0.07, 0.04, 0.16},
+			SkyHorizon:       [3]float32{0.26, 0.14, 0.44},
+			FogColor:         [3]float32{0.18, 0.11, 0.32},
+			FogDensity:       0.017,
+			SunColor:         [3]float32{0.76, 0.56, 1.00},
+			SunIntensity:     0.85,
+			SunPitch:         38,
+			SunYaw:           130,
+			AmbientColor:     [3]float32{0.26, 0.18, 0.40},
+			Weather:          "void",
+			WeatherColor:     [4]float32{0.72, 0.44, 1.00, 0.85},
+			WeatherIntensity: 0.35,
+		}
+		r.Lights = []sdk.RoomLightSpec{
+			{ID: "twilight_lantern", X: 0, Y: 3.6, Z: 0, Color: [3]float32{0.72, 0.42, 1.00}, Intensity: 1.5, Range: 15, PulseSpeed: 0.9},
+		}
+		r.Emitters = []sdk.RoomEmitterSpec{
+			{ID: "twilight_mist", Kind: "mist", X: 0, Y: 1.2, Z: 0, Spread: [3]float32{15, 1.2, 15}, Color: [4]float32{0.56, 0.36, 0.88, 0.65}, Rate: 9, Size: 0.55, Speed: 0.35, Lifetime: 4.5},
+		}
+	}
 }
 
 // RegisterRooms registers all 25 classic Sanctuary rooms and sets (0,0) as spawn room.

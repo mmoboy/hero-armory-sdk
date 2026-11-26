@@ -45,8 +45,9 @@ type Host struct {
 	Logs  []string
 
 	// Client role.
-	Overlay       *sdk.UIPanelSpec // current overlay (nil when cleared)
-	OverlayCount  int              // number of SetOverlay calls
+	Overlay       *sdk.UIPanelSpec            // most recently mounted overlay (nil when none open)
+	Overlays      map[string]*sdk.UIPanelSpec // all open named overlays by panel ID
+	OverlayCount  int                         // number of SetOverlay calls
 	Patches       []sdk.UIOverlayPatch
 	HUD           []sdk.HUDActionSpec
 	ClientPackets []ClientPacket
@@ -56,22 +57,45 @@ type Host struct {
 	Prefs         map[string]string
 
 	// Server role.
-	Notices      []sdk.HostNoticeCmd
-	Packets      []sdk.HostServerPacketCmd
-	Chats        []sdk.HostChatCmd
-	Monsters     map[string]sdk.MonsterSpec
-	Spawns       map[string]sdk.MonsterSpawnSpec
-	Items        map[string]sdk.ItemSpec
-	Recipes      map[string]sdk.RecipeSpec
-	NPCs         map[string]sdk.NPCSpec
-	Rooms        map[[2]int]sdk.RoomSpec
-	GatherNodes  map[string]sdk.GatherNodeSpec
-	CodexEntries map[string]sdk.CodexEntrySpec
-	GivenItems   []sdk.GiveItemCmd
-	KV           map[string][]byte
+	Notices          []sdk.HostNoticeCmd
+	Packets          []sdk.HostServerPacketCmd
+	Chats            []sdk.HostChatCmd
+	Monsters         map[string]sdk.MonsterSpec
+	Spawns           map[string]sdk.MonsterSpawnSpec
+	Items            map[string]sdk.ItemSpec
+	Recipes          map[string]sdk.RecipeSpec
+	NPCs             map[string]sdk.NPCSpec
+	Rooms            map[[2]int]sdk.RoomSpec
+	GatherNodes      map[string]sdk.GatherNodeSpec
+	CodexConfig      *sdk.CodexConfigSpec
+	CodexEntries     map[string]sdk.CodexEntrySpec
+	PlayerSkills     map[string]sdk.PlayerSkillSpec
+	Jobs             map[string]sdk.JobDefSpec
+	StarterConfig    *sdk.StarterConfigSpec
+	SpawnRoom        *sdk.SpawnRoomSpec
+	HeroLoadouts     []sdk.SetHeroLoadoutCmd
+	GivenItems       []sdk.GiveItemCmd
+	TakenItems       []sdk.TakeItemCmd
+	Teleports        []sdk.TeleportHeroCmd
+	DynamicProps     map[string]sdk.SpawnPropCmd
+	RoomAtmospheres  map[[2]int]sdk.RoomAtmosphereSpec
+	MapConfig        *sdk.MapConfigSpec
+	MapRegions       map[string]sdk.MapRegionSpec
+	MapRoutes        map[string]sdk.MapRouteSpec
+	MapMarkers       map[string]sdk.MapMarkerSpec
+	Actors           map[string]sdk.ActorSpec
+	VFXLog           []sdk.VFXSpec
+	FloatingTexts    []sdk.FloatingTextSpec
+	GroundMarkers    map[string]sdk.GroundMarkerSpec
+	HeroHotbars      map[string][]sdk.HotbarSlotSpec
+	HeroPoses        map[string]sdk.SetHeroPoseCmd
+	HeroControlLocks map[string]bool
+	KV               map[string][]byte
 
-	// Online heroes, by ID. Gold/XP/Level are updated by GiveGold/GiveXP.
-	Heroes map[string]sdk.HeroSnapshot
+	// Online heroes, by ID. Gold/XP/Level/Room/Pos are updated by GiveGold/GiveXP/TeleportHero.
+	Heroes        map[string]sdk.HeroSnapshot
+	HeroInventory map[string]map[string]int
+	HeroInBattle  map[string]bool
 
 	// Fail forces a hostcall (by name, e.g. "server_kv_set") to return a code.
 	Fail map[string]int32
@@ -82,6 +106,8 @@ func New() *Host {
 	h := &Host{}
 	h.Reset()
 	h.Heroes = map[string]sdk.HeroSnapshot{}
+	h.HeroInventory = map[string]map[string]int{}
+	h.HeroInBattle = map[string]bool{}
 	h.KV = map[string][]byte{}
 	h.Prefs = map[string]string{}
 	h.Fail = map[string]int32{}
@@ -99,14 +125,17 @@ func Install(t testing.TB) *Host {
 }
 
 // Reset clears recordings (calls, notices, packets, overlays, registries) but
-// keeps KV, Prefs, online heroes, and forced failures.
+// keeps KV, Prefs, online heroes, hero inventories, battle flags, and forced failures.
 func (h *Host) Reset() {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.Calls, h.Logs = nil, nil
 	h.Overlay, h.OverlayCount, h.Patches, h.HUD = nil, 0, nil, nil
+	h.Overlays = map[string]*sdk.UIPanelSpec{}
 	h.ClientPackets, h.CodexQueries, h.Audio = nil, nil, nil
-	h.Notices, h.Packets, h.Chats, h.GivenItems = nil, nil, nil, nil
+	h.Notices, h.Packets, h.Chats = nil, nil, nil
+	h.GivenItems, h.TakenItems, h.Teleports, h.HeroLoadouts = nil, nil, nil, nil
+	h.CodexConfig, h.StarterConfig, h.SpawnRoom = nil, nil, nil
 	h.Meshes = map[string]sdk.CustomMeshSpec{}
 	h.Monsters = map[string]sdk.MonsterSpec{}
 	h.Spawns = map[string]sdk.MonsterSpawnSpec{}
@@ -116,6 +145,56 @@ func (h *Host) Reset() {
 	h.Rooms = map[[2]int]sdk.RoomSpec{}
 	h.GatherNodes = map[string]sdk.GatherNodeSpec{}
 	h.CodexEntries = map[string]sdk.CodexEntrySpec{}
+	h.PlayerSkills = map[string]sdk.PlayerSkillSpec{}
+	h.Jobs = map[string]sdk.JobDefSpec{}
+	h.DynamicProps = map[string]sdk.SpawnPropCmd{}
+	h.RoomAtmospheres = map[[2]int]sdk.RoomAtmosphereSpec{}
+	h.MapConfig = nil
+	h.MapRegions = map[string]sdk.MapRegionSpec{}
+	h.MapRoutes = map[string]sdk.MapRouteSpec{}
+	h.MapMarkers = map[string]sdk.MapMarkerSpec{}
+	h.Actors = map[string]sdk.ActorSpec{}
+	h.VFXLog = nil
+	h.FloatingTexts = nil
+	h.GroundMarkers = map[string]sdk.GroundMarkerSpec{}
+	h.HeroHotbars = map[string][]sdk.HotbarSlotSpec{}
+	h.HeroPoses = map[string]sdk.SetHeroPoseCmd{}
+	h.HeroControlLocks = map[string]bool{}
+}
+
+// FireActorClick dispatches ev to p if p implements sdk.CombatInputPlugin.
+func (h *Host) FireActorClick(p sdk.ServerPlugin, ev sdk.ActorClickEvent) {
+	if cb, ok := p.(sdk.CombatInputPlugin); ok && cb != nil {
+		cb.OnActorClick(ev)
+	}
+}
+
+// FireGroundClick dispatches ev to p if p implements sdk.CombatInputPlugin.
+func (h *Host) FireGroundClick(p sdk.ServerPlugin, ev sdk.GroundClickEvent) {
+	if cb, ok := p.(sdk.CombatInputPlugin); ok && cb != nil {
+		cb.OnGroundClick(ev)
+	}
+}
+
+// FireHotbarPress dispatches ev to p if p implements sdk.CombatInputPlugin.
+func (h *Host) FireHotbarPress(p sdk.ServerPlugin, ev sdk.HotbarPressEvent) {
+	if cb, ok := p.(sdk.CombatInputPlugin); ok && cb != nil {
+		cb.OnHotbarPress(ev)
+	}
+}
+
+// FireMapRoomClick dispatches ev to p if p implements sdk.MapInputPlugin.
+func (h *Host) FireMapRoomClick(p sdk.ServerPlugin, ev sdk.MapRoomClickEvent) {
+	if cb, ok := p.(sdk.MapInputPlugin); ok && cb != nil {
+		cb.OnMapRoomClick(ev)
+	}
+}
+
+// FireMapMarkerClick dispatches ev to p if p implements sdk.MapInputPlugin.
+func (h *Host) FireMapMarkerClick(p sdk.ServerPlugin, ev sdk.MapMarkerClickEvent) {
+	if cb, ok := p.(sdk.MapInputPlugin); ok && cb != nil {
+		cb.OnMapMarkerClick(ev)
+	}
 }
 
 // SetOnline marks hero as online (replacing any previous snapshot).
@@ -133,6 +212,65 @@ func (h *Host) SetOffline(heroID string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	delete(h.Heroes, heroID)
+}
+
+// SetHeroItem sets the bag quantity of itemID for heroID (qty <= 0 removes it).
+func (h *Host) SetHeroItem(heroID, itemID string, qty int) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.HeroInventory[heroID] == nil {
+		if qty <= 0 {
+			return
+		}
+		h.HeroInventory[heroID] = map[string]int{}
+	}
+	if qty <= 0 {
+		delete(h.HeroInventory[heroID], itemID)
+		return
+	}
+	h.HeroInventory[heroID][itemID] = qty
+}
+
+// HeroItemCount returns the recorded bag quantity of itemID for heroID.
+func (h *Host) HeroItemCount(heroID, itemID string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.HeroInventory[heroID][itemID]
+}
+
+// SetInBattle sets whether heroID is currently in a tactical battle.
+func (h *Host) SetInBattle(heroID string, inBattle bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if !inBattle {
+		delete(h.HeroInBattle, heroID)
+		return
+	}
+	h.HeroInBattle[heroID] = true
+}
+
+// OverlayByID returns the open overlay panel matching panelID, or nil.
+func (h *Host) OverlayByID(panelID string) *sdk.UIPanelSpec {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if panelID == "" {
+		panelID = "default"
+	}
+	return h.Overlays[panelID]
+}
+
+// FindNodeIn returns the node with nodeID inside the open overlay panelID, or nil.
+func (h *Host) FindNodeIn(panelID, nodeID string) *sdk.UINodeSpec {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if panelID == "" {
+		panelID = "default"
+	}
+	ov := h.Overlays[panelID]
+	if ov == nil || ov.Root == nil {
+		return nil
+	}
+	return findNode(ov.Root, nodeID)
 }
 
 // Hero returns the online snapshot for id (zero value if offline).
@@ -298,23 +436,63 @@ func (h *Host) HostCall(name string, payload []byte) (int32, []byte) {
 		h.OverlayCount++
 		if len(payload) == 0 {
 			h.Overlay = nil
+			h.Overlays = map[string]*sdk.UIPanelSpec{}
 			return 0, nil
 		}
 		p, ok := decode[sdk.UIPanelSpec](payload)
 		if !ok || sdk.ValidateOverlay(p) != nil {
 			return invalid, nil
 		}
+		id := p.ID
+		if id == "" {
+			id = "default"
+		}
+		if _, exists := h.Overlays[id]; !exists && len(h.Overlays) >= sdk.MaxOverlays {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		h.Overlays[id] = &p
 		h.Overlay = &p
+	case "ui_clear_overlay_id":
+		c, ok := decode[sdk.ClearOverlayCmd](payload)
+		if !ok || c.PanelID == "" {
+			return invalid, nil
+		}
+		if _, exists := h.Overlays[c.PanelID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.Overlays, c.PanelID)
+		if h.Overlay != nil {
+			curID := h.Overlay.ID
+			if curID == "" {
+				curID = "default"
+			}
+			if curID == c.PanelID {
+				h.Overlay = nil
+				keys := make([]string, 0, len(h.Overlays))
+				for k := range h.Overlays {
+					keys = append(keys, k)
+				}
+				sort.Strings(keys)
+				if len(keys) > 0 {
+					h.Overlay = h.Overlays[keys[0]]
+				}
+			}
+		}
 	case "ui_patch_overlay":
 		p, ok := decode[sdk.UIOverlayPatch](payload)
 		if !ok {
 			return invalid, nil
 		}
-		if h.Overlay == nil || h.Overlay.ID != p.PanelID || h.Overlay.Root == nil {
+		pid := p.PanelID
+		if pid == "" {
+			pid = "default"
+		}
+		ov := h.Overlays[pid]
+		if ov == nil || ov.Root == nil {
 			return sdk.CodeNotFound, nil
 		}
 		for _, pt := range p.Patches {
-			n := findNode(h.Overlay.Root, pt.ID)
+			n := findNode(ov.Root, pt.ID)
 			if n == nil {
 				continue
 			}
@@ -436,6 +614,10 @@ func (h *Host) HostCall(name string, payload []byte) (int32, []byte) {
 		if !ok || len(payload) > sdk.MaxRoomSpecBytes {
 			return invalid, nil
 		}
+		if len(r.Liquids) > sdk.MaxRoomLiquids || len(r.Lights) > sdk.MaxRoomLights ||
+			len(r.Emitters) > sdk.MaxRoomEmitters || len(r.Zones) > sdk.MaxRoomZones {
+			return invalid, nil
+		}
 		h.Rooms[[2]int{r.X, r.Y}] = r
 	case "server_remove_room":
 		c, _ := decode[sdk.RoomCoordCmd](payload)
@@ -461,6 +643,393 @@ func (h *Host) HostCall(name string, payload []byte) (int32, []byte) {
 			return sdk.CodeHeroOffline, nil
 		}
 		h.GivenItems = append(h.GivenItems, g)
+		if h.HeroInventory[g.TargetHeroID] == nil {
+			h.HeroInventory[g.TargetHeroID] = map[string]int{}
+		}
+		h.HeroInventory[g.TargetHeroID][g.ItemID] += g.Quantity
+	case "server_take_item":
+		c, ok := decode[sdk.TakeItemCmd](payload)
+		if !ok || c.TargetHeroID == "" || !sdk.IsValidContentID(c.ItemID) || c.Quantity < 1 || c.Quantity > 999 {
+			return invalid, nil
+		}
+		if _, online := h.Heroes[c.TargetHeroID]; !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		inv := h.HeroInventory[c.TargetHeroID]
+		if inv[c.ItemID] < c.Quantity {
+			return sdk.CodeNotEnoughItems, nil
+		}
+		inv[c.ItemID] -= c.Quantity
+		if inv[c.ItemID] <= 0 {
+			delete(inv, c.ItemID)
+		}
+		h.TakenItems = append(h.TakenItems, c)
+	case "server_get_inventory":
+		q, ok := decode[sdk.HeroQueryCmd](payload)
+		if !ok || q.HeroID == "" {
+			return invalid, nil
+		}
+		if _, online := h.Heroes[q.HeroID]; !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		inv := h.HeroInventory[q.HeroID]
+		ids := make([]string, 0, len(inv))
+		for id, qty := range inv {
+			if qty > 0 {
+				ids = append(ids, id)
+			}
+		}
+		sort.Strings(ids)
+		stacks := make([]sdk.ItemStackSpec, 0, len(ids))
+		for _, id := range ids {
+			stacks = append(stacks, sdk.ItemStackSpec{ItemID: id, Quantity: inv[id]})
+		}
+		raw, _ := json.Marshal(stacks)
+		return 0, raw
+	case "server_teleport_hero":
+		c, ok := decode[sdk.TeleportHeroCmd](payload)
+		if !ok || c.TargetHeroID == "" {
+			return invalid, nil
+		}
+		hero, online := h.Heroes[c.TargetHeroID]
+		if !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		if h.HeroInBattle[c.TargetHeroID] {
+			return sdk.CodeInBattle, nil
+		}
+		room, exists := h.Rooms[[2]int{c.RoomX, c.RoomY}]
+		if !exists {
+			return sdk.CodeNotFound, nil
+		}
+		hero.RoomX = c.RoomX
+		hero.RoomY = c.RoomY
+		if c.UsePos {
+			hero.PosX = c.Pos[0]
+			hero.PosZ = c.Pos[2]
+		} else {
+			hero.PosX = room.SpawnPos[0]
+			hero.PosZ = room.SpawnPos[2]
+		}
+		h.Heroes[c.TargetHeroID] = hero
+		h.Teleports = append(h.Teleports, c)
+	case "server_spawn_prop":
+		c, ok := decode[sdk.SpawnPropCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.Prop.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{c.RoomX, c.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		prev, existed := h.DynamicProps[c.Prop.ID]
+		if !existed && len(h.DynamicProps) >= sdk.MaxDynamicProps {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		if !existed || prev.RoomX != c.RoomX || prev.RoomY != c.RoomY {
+			roomCount := 0
+			for _, p := range h.DynamicProps {
+				if p.RoomX == c.RoomX && p.RoomY == c.RoomY {
+					roomCount++
+				}
+			}
+			if roomCount >= sdk.MaxDynamicPropsPerRoom {
+				return sdk.CodeQuotaOrBackend, nil
+			}
+		}
+		h.DynamicProps[c.Prop.ID] = c
+	case "server_remove_prop":
+		c, ok := decode[sdk.RemovePropCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.DynamicProps[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.DynamicProps, c.ID)
+	case "server_set_room_atmosphere":
+		c, ok := decode[sdk.SetRoomAtmosphereCmd](payload)
+		if !ok {
+			return invalid, nil
+		}
+		coord := [2]int{c.RoomX, c.RoomY}
+		if _, exists := h.Rooms[coord]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		if c.Atmosphere == nil {
+			delete(h.RoomAtmospheres, coord)
+		} else {
+			if len(c.Atmosphere.Lights) > sdk.MaxRoomLights || len(c.Atmosphere.Emitters) > sdk.MaxRoomEmitters {
+				return invalid, nil
+			}
+			h.RoomAtmospheres[coord] = *c.Atmosphere
+		}
+	case "server_set_map_marker":
+		m, ok := decode[sdk.MapMarkerSpec](payload)
+		if !ok || !sdk.IsValidContentID(m.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{m.RoomX, m.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		if _, exists := h.MapMarkers[m.ID]; !exists && len(h.MapMarkers) >= sdk.MaxMapMarkers {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		h.MapMarkers[m.ID] = m
+	case "server_remove_map_marker":
+		c, ok := decode[sdk.RemoveMapMarkerCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.MapMarkers[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.MapMarkers, c.ID)
+	case "server_spawn_actor":
+		a, ok := decode[sdk.ActorSpec](payload)
+		if !ok || !sdk.IsValidContentID(a.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{a.RoomX, a.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		prev, existed := h.Actors[a.ID]
+		if !existed && len(h.Actors) >= sdk.MaxDynamicActors {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		if !existed || prev.RoomX != a.RoomX || prev.RoomY != a.RoomY {
+			roomCount := 0
+			for _, cur := range h.Actors {
+				if cur.RoomX == a.RoomX && cur.RoomY == a.RoomY {
+					roomCount++
+				}
+			}
+			if roomCount >= sdk.MaxDynamicActorsPerRoom {
+				return sdk.CodeQuotaOrBackend, nil
+			}
+		}
+		h.Actors[a.ID] = a
+	case "server_update_actor":
+		p, ok := decode[sdk.ActorPatch](payload)
+		if !ok || !sdk.IsValidContentID(p.ID) {
+			return invalid, nil
+		}
+		cur, exists := h.Actors[p.ID]
+		if !exists {
+			return sdk.CodeNotFound, nil
+		}
+		if p.PosX != nil {
+			cur.PosX = *p.PosX
+		}
+		if p.PosZ != nil {
+			cur.PosZ = *p.PosZ
+		}
+		if p.Yaw != nil {
+			cur.Yaw = *p.Yaw
+		}
+		if p.Name != nil {
+			cur.Name = *p.Name
+		}
+		if p.HP != nil {
+			cur.HP = *p.HP
+		}
+		if p.MaxHP != nil {
+			cur.MaxHP = *p.MaxHP
+		}
+		if p.Shield != nil {
+			cur.Shield = *p.Shield
+		}
+		if p.Pose != nil {
+			cur.Pose = *p.Pose
+		}
+		if p.ReplaceStatuses || len(p.Statuses) > 0 {
+			cur.Statuses = append([]sdk.ActorStatusSpec(nil), p.Statuses...)
+		}
+		if p.Targetable != nil {
+			cur.Targetable = *p.Targetable
+		}
+		h.Actors[p.ID] = cur
+	case "server_remove_actor":
+		c, ok := decode[sdk.RemoveActorCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.Actors[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.Actors, c.ID)
+	case "server_play_vfx":
+		v, ok := decode[sdk.VFXSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{v.RoomX, v.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		h.VFXLog = append(h.VFXLog, v)
+	case "server_show_floating_text":
+		f, ok := decode[sdk.FloatingTextSpec](payload)
+		if !ok || f.Text == "" {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{f.RoomX, f.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		h.FloatingTexts = append(h.FloatingTexts, f)
+	case "server_set_ground_marker":
+		m, ok := decode[sdk.GroundMarkerSpec](payload)
+		if !ok || !sdk.IsValidContentID(m.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{m.RoomX, m.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		prev, existed := h.GroundMarkers[m.ID]
+		if !existed || prev.RoomX != m.RoomX || prev.RoomY != m.RoomY {
+			roomCount := 0
+			for _, cur := range h.GroundMarkers {
+				if cur.RoomX == m.RoomX && cur.RoomY == m.RoomY {
+					roomCount++
+				}
+			}
+			if roomCount >= sdk.MaxGroundMarkers {
+				return sdk.CodeQuotaOrBackend, nil
+			}
+		}
+		h.GroundMarkers[m.ID] = m
+	case "server_remove_ground_marker":
+		c, ok := decode[sdk.RemoveGroundMarkerCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.GroundMarkers[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.GroundMarkers, c.ID)
+	case "server_clear_ground_markers":
+		c, ok := decode[sdk.ClearGroundMarkersCmd](payload)
+		if !ok {
+			return invalid, nil
+		}
+		if _, exists := h.Rooms[[2]int{c.RoomX, c.RoomY}]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		for id, cur := range h.GroundMarkers {
+			if cur.RoomX != c.RoomX || cur.RoomY != c.RoomY {
+				continue
+			}
+			if c.OwnerHeroID == "" || cur.OwnerHeroID == c.OwnerHeroID {
+				delete(h.GroundMarkers, id)
+			}
+		}
+	case "server_set_hero_hotbar":
+		c, ok := decode[sdk.SetHeroHotbarCmd](payload)
+		if !ok || c.TargetHeroID == "" || len(c.Slots) > sdk.MaxHotbarSlots {
+			return invalid, nil
+		}
+		if _, online := h.Heroes[c.TargetHeroID]; !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		if len(c.Slots) == 0 {
+			delete(h.HeroHotbars, c.TargetHeroID)
+		} else {
+			h.HeroHotbars[c.TargetHeroID] = append([]sdk.HotbarSlotSpec(nil), c.Slots...)
+		}
+	case "server_set_hero_pose":
+		c, ok := decode[sdk.SetHeroPoseCmd](payload)
+		if !ok || c.TargetHeroID == "" || c.Pose == "" {
+			return invalid, nil
+		}
+		if _, online := h.Heroes[c.TargetHeroID]; !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		h.HeroPoses[c.TargetHeroID] = c
+	case "server_set_hero_control_lock":
+		c, ok := decode[sdk.SetHeroControlLockCmd](payload)
+		if !ok || c.TargetHeroID == "" {
+			return invalid, nil
+		}
+		if _, online := h.Heroes[c.TargetHeroID]; !online {
+			return sdk.CodeHeroOffline, nil
+		}
+		h.HeroControlLocks[c.TargetHeroID] = c.LockMove
+	case "server_set_map_config":
+		c, ok := decode[sdk.MapConfigSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.MapConfig = &c
+	case "server_set_map_region":
+		r, ok := decode[sdk.MapRegionSpec](payload)
+		if !ok || !sdk.IsValidContentID(r.ID) || r.MinRoomX > r.MaxRoomX || r.MinRoomY > r.MaxRoomY {
+			return invalid, nil
+		}
+		if _, exists := h.MapRegions[r.ID]; !exists && len(h.MapRegions) >= sdk.MaxMapRegions {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		h.MapRegions[r.ID] = r
+	case "server_remove_map_region":
+		c, ok := decode[sdk.RemoveMapRegionCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.MapRegions[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.MapRegions, c.ID)
+	case "server_set_map_route":
+		r, ok := decode[sdk.MapRouteSpec](payload)
+		if !ok || !sdk.IsValidContentID(r.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.MapRoutes[r.ID]; !exists && len(h.MapRoutes) >= sdk.MaxMapRoutes {
+			return sdk.CodeQuotaOrBackend, nil
+		}
+		h.MapRoutes[r.ID] = r
+	case "server_remove_map_route":
+		c, ok := decode[sdk.RemoveMapRouteCmd](payload)
+		if !ok || !sdk.IsValidContentID(c.ID) {
+			return invalid, nil
+		}
+		if _, exists := h.MapRoutes[c.ID]; !exists {
+			return sdk.CodeNotFound, nil
+		}
+		delete(h.MapRoutes, c.ID)
+	case "server_configure_codex":
+		c, ok := decode[sdk.CodexConfigSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.CodexConfig = &c
+	case "server_register_player_skill":
+		s, ok := decode[sdk.PlayerSkillSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.PlayerSkills[s.ID] = s
+	case "server_register_job":
+		j, ok := decode[sdk.JobDefSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.Jobs[j.ID] = j
+	case "server_set_starter_config":
+		s, ok := decode[sdk.StarterConfigSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.StarterConfig = &s
+	case "server_set_spawn_room":
+		s, ok := decode[sdk.SpawnRoomSpec](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.SpawnRoom = &s
+	case "server_set_hero_loadout":
+		c, ok := decode[sdk.SetHeroLoadoutCmd](payload)
+		if !ok {
+			return invalid, nil
+		}
+		h.HeroLoadouts = append(h.HeroLoadouts, c)
 	case "server_give_currency":
 		g, ok := decode[sdk.GiveCurrencyCmd](payload)
 		if !ok || g.XP < 0 {

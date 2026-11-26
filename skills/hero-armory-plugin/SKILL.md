@@ -32,8 +32,8 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
    - Never omit `-buildmode=c-shared` (host ABI exports depend on it).
    - Register the plugin in `func init()` via `sdk.RegisterServer(...)` or `sdk.RegisterClient(...)`, and keep `func main() {}` empty.
 3. **Strict VM Role Separation**:
-   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RemoveMonsterSpawn`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `GiveGold`, `GiveXP`, `GetHero`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, `SendChatToHero`, `BroadcastChat`, and `KV*`, plus optional lifecycle hooks `OnBeginCharacterCreate` and `OnFinalizeCharacterCreate`.
-   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `PatchOverlay`, `ClearOverlay`, `SetCharacterCreatePreview`, `SubmitCharacterCreate`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`, plus optional `OnEnterCharacterCreate`.
+   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `SetRoomAtmosphere`, `ClearRoomAtmosphere`, `SetMapConfig`, `SetMapRegion`, `RemoveMapRegion`, `SetMapRoute`, `RemoveMapRoute`, `SetMapMarker`, `RemoveMapMarker`, `SpawnActor`, `UpdateActor`, `RemoveActor`, `PlayVFX`, `ShowFloatingText`, `SetGroundMarker`, `RemoveGroundMarker`, `ClearGroundMarkers`, `SetHeroHotbar`, `SetHeroPose`, `SetHeroControlLock`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RemoveMonsterSpawn`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `TakeItemFromHero`, `GetHeroInventory`, `GetHeroItemCount`, `GiveGold`, `GiveXP`, `GetHero`, `TeleportHero`, `SpawnProp`, `RemoveProp`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, `SendChatToHero`, `BroadcastChat`, and `KV*`, plus optional lifecycle hooks `OnBeginCharacterCreate`, `OnFinalizeCharacterCreate`, `ZoneObserverPlugin` (`OnZoneEnter`, `OnZoneExit`), `CombatInputPlugin` (`OnActorClick`, `OnGroundClick`, `OnHotbarPress`), and `MapInputPlugin` (`OnMapRoomClick`, `OnMapMarkerClick`).
+   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `PatchOverlay`, `ClearOverlay`, `ClearOverlayID`, `SetCharacterCreatePreview`, `SubmitCharacterCreate`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`, plus optional `OnEnterCharacterCreate`.
    - `sdk.Log(msg)` works in both roles.
    - Calling a hostcall from the wrong VM role returns `sdk.ErrWrongRole` / negative error code.
 4. **Content IDs & Naming Convention**:
@@ -165,7 +165,12 @@ Embed `sdk.BaseServerPlugin` and implement only the hooks needed:
   - `sdk.BroadcastRoomPacket(roomX, roomY, channel, payload)`
   - `sdk.SendNoticeToHero(heroID, severity, title, message)` / `sdk.BroadcastNotice(severity, title, message)` (`severity`: `"info"`, `"warn"`, `"alert"`)
 - **World Map, Rooms & NPCs**:
-  - `sdk.RegisterRoom(sdk.RoomSpec{...})` (`TerrainOps`: `"rect"`, `"slope"`, `"void"`; `Obstacles`, `Boxes`, `Portals`, `Houses`, `Interactables`, `Props`, `SafeZone`, `HousingZone`, `LightingPreset`)
+  - `sdk.RegisterRoom(sdk.RoomSpec{...})` (`TerrainOps`: `"rect"`, `"slope"`, `"void"`; `Obstacles`, `Boxes`, `Portals`, `Houses`, `Interactables` with optional `ModelID`/`ModelPath`/`Scale`/`Yaw`, `Props`, `SafeZone`, `HousingZone`, `LightingPreset`, plus API level 4 `MapColor`, `MapIcon`, `Atmosphere *RoomAtmosphereSpec`, `Liquids []RoomLiquidSpec`, `Lights []RoomLightSpec`, `Emitters []RoomEmitterSpec`, `Zones []RoomTriggerZoneSpec`)
+  - `sdk.SetRoomAtmosphere(roomX, roomY, sdk.RoomAtmosphereSpec{...})` / `sdk.ClearRoomAtmosphere(roomX, roomY)` -- API level 4; dynamically overrides sky, fog, sun, ambient tint, weather (`""`, `"none"`, `"rain"`, `"snow"`, `"ash"`, `"spores"`, `"embers"`, `"void"`, `"starfall"`), and extra lights/emitters in real time
+  - `sdk.SetMapConfig(sdk.MapConfigSpec{...})` / `sdk.SetMapRegion(sdk.MapRegionSpec{...})` / `sdk.RemoveMapRegion(id)` / `sdk.SetMapRoute(sdk.MapRouteSpec{...})` / `sdk.RemoveMapRoute(id)` -- API level 6; customizes the World Map header/palette/fast-travel, shaded territory regions (max `MaxMapRegions` = 16), and room-to-room routes (`"road"`, `"portal"`, `"leyline"`, `"dashed"`, max `MaxMapRoutes` = 32)
+  - Optional `sdk.MapInputPlugin`: `OnMapRoomClick(ev sdk.MapRoomClickEvent)` and `OnMapMarkerClick(ev sdk.MapMarkerClickEvent)` (API level 6)
+  - `sdk.SetMapMarker(sdk.MapMarkerSpec{...})` / `sdk.RemoveMapMarker(id)` -- API level 4+ (API level 6 adds `Category`, `Tooltip`, `Radius`, `Clickable`); places/removes pulsing world-map & minimap markers (max `MaxMapMarkers` = 64)
+  - Optional `sdk.ZoneObserverPlugin`: `OnZoneEnter(ev sdk.ZoneEvent)` and `OnZoneExit(ev sdk.ZoneEvent)` for walk-in `RoomTriggerZoneSpec` triggers (API level 4)
   - `sdk.RemoveRoom(x, y)` / `sdk.SetSpawnRoom(x, y, pos)`
   - `sdk.RegisterNPC(sdk.NPCSpec{...})` (`Outfit`, `Greeting`, up to 12 `Options`, `ShopEnabled`)
 - **Starter Config, Loadouts, Skills & Jobs**:
@@ -180,10 +185,23 @@ Embed `sdk.BaseServerPlugin` and implement only the hooks needed:
   - `sdk.SpawnGatherNode(sdk.GatherNodeSpec{...})` (`Job`: `"bucheron"`, `"mineur"`, `"herborist"`, `"fisherman"`, `"craftsman"`)
   - `sdk.RegisterRecipe(sdk.RecipeSpec{...})`
   - `sdk.GiveItemToHero(heroID, itemID, quantity)` (1..99; returns `sdk.CodeHeroOffline` (-6) for offline heroes, items are NOT queued)
+  - `sdk.TakeItemFromHero(heroID, itemID, quantity)` (1..999; atomic bag removal, returns `sdk.ErrHeroOffline` or `sdk.ErrNotEnoughItems`) -- API level 3
+  - `sdk.GetHeroInventory(heroID) ([]ItemStackSpec, error)` / `sdk.GetHeroItemCount(heroID, itemID) (int, error)` -- API level 3; inspects an online hero's bag stacks
+  - `sdk.TeleportHero(heroID, roomX, roomY, pos, usePos)` -- API level 3; moves an online hero to `(roomX, roomY)` at `pos` or the room's default spawn; returns `sdk.ErrHeroOffline`, `sdk.ErrInBattle`, or `sdk.ErrNotFound`
+  - `sdk.SpawnProp(roomX, roomY, sdk.RoomPropSpec{...})` / `sdk.RemoveProp(id)` -- API level 3; places/updates/removes live dynamic 3D world props (supports `ModelID` and `ModelPath`, up to `MaxDynamicProps` = 256 total / `MaxDynamicPropsPerRoom` = 32 per room)
   - `sdk.GiveGold(heroID, amount)` (negative = charge, `sdk.ErrNotEnoughGold` if the balance is too low) / `sdk.GiveXP(heroID, amount)` (applies level-ups) -- API level 2, no host caps
   - `sdk.RemoveMonsterSpawn(spawnID)` -- API level 2; an idle pack vanishes at once, a pack in battle when the battle ends
   - `sdk.GetHero(heroID) (HeroSnapshot, found, err)` -- API level 2; `HeroSnapshot` now carries `Level`, `XP`, `Gold`, `ClassID`
   - `sdk.SendChatToHero(heroID, text)` / `sdk.BroadcastChat(text)` -- API level 2; shown on the system channel tagged `[<plugin name>]`, max 240 ASCII chars
+- **Generic Combat & Encounter Primitives (API level 5)**:
+  - Set `"disable_legacy_combat": true` in `manifest.json` (`PluginManifest.DisableLegacyCombat`) to bypass legacy overworld monster combat and own 100% of combat rules.
+  - `sdk.SpawnActor(sdk.ActorSpec{...})` / `sdk.UpdateActor(sdk.ActorPatch{...})` / `sdk.RemoveActor(id)` (max `MaxDynamicActors` = 128, `MaxDynamicActorsPerRoom` = 32; pointer helpers `sdk.PtrFloat32`, `sdk.PtrInt`, `sdk.PtrString`, `sdk.PtrBool`)
+  - `sdk.PlayVFX(sdk.VFXSpec{...})` (`Kind`: `"slash"`, `"bolt"`, `"nova"`, `"heal"`, `"shield"`, `"buff"`, `"debuff"`, `"ring"`, `"beam"`)
+  - `sdk.ShowFloatingText(sdk.FloatingTextSpec{...})` (world-space rising damage/status numbers)
+  - `sdk.SetGroundMarker(sdk.GroundMarkerSpec{...})` (`Shape`: `"circle"`, `"ring"`, `"tile"`, `"line"`; `OwnerHeroID` empty = room-wide, non-empty = private to hero) / `sdk.RemoveGroundMarker(id)` / `sdk.ClearGroundMarkers(roomX, roomY, ownerHeroID)` (max `MaxGroundMarkers` = 64/room)
+  - `sdk.SetHeroHotbar(heroID, []sdk.HotbarSlotSpec{...})` (slots 1..10, slot 10 = key `0`, empty hides) / `sdk.SetHeroPose(heroID, pose, yaw)` / `sdk.SetHeroControlLock(heroID, lockMove)`
+  - Optional `sdk.CombatInputPlugin`: `OnActorClick(ev sdk.ActorClickEvent)`, `OnGroundClick(ev sdk.GroundClickEvent)`, `OnHotbarPress(ev sdk.HotbarPressEvent)`
+  - Turnkey tactical combat package (`github.com/mmoboy/hero-armory-sdk/tactical`): `tactical.NewEngine(tactical.Config{...})`, `AddEncounter(tactical.EncounterSpec{...})`, `DifficultyTier` (`TierStory`..`TierMythic`), `PresetBalance`/`ScaleMob`, 8 default player spells + 8 monster templates, `HandleDifficultyCommand`, and forwarding `OnTick`, `OnActorClick`, `OnGroundClick`, `OnHotbarPress`, `OnPlayerLeave`, `OnRoomEnter`.
 - **Codex**:
   - `sdk.ConfigureCodex(sdk.CodexConfigSpec{...})`
   - `sdk.RegisterCodexEntry(sdk.CodexEntrySpec{...})` (`Category`: `"bestiary"`, `"resources"`, `"items"`, `"recipes"`, `"custom"`)
@@ -208,13 +226,14 @@ Embed `sdk.BaseClientPlugin` and implement:
 
 - `sdk.SendToServer(channel, payload)` / `sdk.SendJSONToServer(channel, v)`
 - `sdk.SetHUDActions([]sdk.HUDActionSpec{...})` (max 6 buttons; `Icon` = atlas icon name like `"star"` or bundle `.png` path; `Badge` max 6 chars, longer badges are cut)
-- `sdk.SetOverlay(sdk.UIPanelSpec{...})` / `sdk.ClearOverlay()`
-  - `Anchor`: `"top_left"`, `"top_right"`, `"bottom_left"`, `"bottom_right"`, `"center"`
+- `sdk.SetOverlay(sdk.UIPanelSpec{...})` / `sdk.ClearOverlay()` / `sdk.ClearOverlayID(panelID)` (API level 3)
+  - Supports up to `MaxOverlays` (4) concurrent named overlays keyed by `panel.ID` (API level 3); `ClearOverlayID` removes one panel while keeping others open, and `ClearOverlay()` clears all overlays.
+  - `Anchor`: `"top_left"`, `"top_center"`, `"top_right"`, `"bottom_left"`, `"bottom_center"`, `"bottom_right"`, `"center"`
   - Node kinds: `"panel"`, `"col"`, `"row"`, `"label"`, `"button"`, `"input"`, `"icon"`, `"image"`, `"progress"`, `"scroll"`
   - Button `Variant`: `"default"`, `"active"` (alias `"primary"`), `"emerald"` (alias `"success"`), `"danger"`
   - `SetOverlay` rejects panels over the limits locally (-4); `sdk.ValidateOverlay(panel)` says why.
   - `sdk.PatchOverlay(panelID, sdk.UINodePatch{ID, Text, Value, Progress, Color, Hidden})` (API level 2) updates nodes by `ID` in place, keeping focus, typed input, and scroll position. Use it for timers and counters; use `Value: sdk.PatchText("")` to clear an input after submit. `UINodeSpec.Hidden` renders a node hidden.
-  - Helper constructors: `sdk.ColNode`, `sdk.RowNode`, `sdk.CardNode`, `sdk.LabelNode`, `sdk.ButtonNode`, `sdk.InputNode`, `sdk.ProgressNode`, `sdk.ImageNode`
+  - Helper constructors: `sdk.ColNode`, `sdk.RowNode`, `sdk.CardNode`, `sdk.LabelNode`, `sdk.ButtonNode`, `sdk.InputNode`, `sdk.ProgressNode`, `sdk.ImageNode`, `sdk.IconNode`, `sdk.ScrollNode`
 - `sdk.OpenCodex(query)`
 - `sdk.PlayAudio(assetPath, volume)` (`.wav` or `.ogg` inside `.gtpack`, volume `0.0..1.0`)
 - `sdk.RegisterCustomMesh(sdk.CustomMeshSpec{ID, Parts})` (`AnimMode`: `""`, `"spin_y"`, `"bob"`, `"orbit"`; `ActiveOnly`: hide gatherable part on cooldown). Triangles are front-facing when wound **counter-clockwise seen from outside**; when `Normals` are omitted they are computed from that winding, so clockwise triangles light as if inside-out. Set `DoubleSided` only for thin surfaces.
@@ -227,9 +246,9 @@ Embed `sdk.BaseClientPlugin` and implement:
 
 ## 4b. API Levels, Error Codes, and Testing
 
-- `sdk.APILevel` = 2. Level-2 calls: `RemoveMonsterSpawn`, `GiveGold`, `GiveXP`, `GetHero`, `SendChatToHero`, `BroadcastChat`, `ChatCommandPlugin`, `PatchOverlay`. A plugin calling one on an older realm/client fails to load with an error naming the missing host function.
-- Result codes (`sdk.CodeToErr`): `-2` wrong role (`ErrWrongRole`), `-3` ABI memory, `-4` invalid argument (`ErrInvalidArg`), `-5` quota/backend, `-6` hero offline (`ErrHeroOffline`), `-7` not enough gold (`ErrNotEnoughGold`), `-8` not found (`ErrNotFound`).
-- **Unit tests with `go test`**: import `github.com/mmoboy/hero-armory-sdk/sdktest` and call `h := sdktest.Install(t)`. It records overlays, HUD actions, notices, packets, chat, spawns, and given items, keeps KV/Prefs in memory with the real limits, and models online/offline heroes (`h.SetOnline(sdk.HeroSnapshot{...})`). Helpers: `h.NoticesFor`, `h.ChatsFor`, `sdktest.PacketsFor[T]`, `h.FindNode`, `h.OverlayText`, `h.Fail["server_kv_set"] = sdk.CodeQuotaOrBackend`.
+- `sdk.APILevel` = 6. Level-2 calls: `RemoveMonsterSpawn`, `GiveGold`, `GiveXP`, `GetHero`, `SendChatToHero`, `BroadcastChat`, `ChatCommandPlugin`, `PatchOverlay`. Level-3 calls: `GetHeroInventory`, `GetHeroItemCount`, `TakeItemFromHero`, `TeleportHero`, `ClearOverlayID` (plus up to 4 concurrent named overlays and `"top_center"`/`"bottom_center"` anchors), `SpawnProp`, `RemoveProp`. Level-4 calls: `SetRoomAtmosphere`, `ClearRoomAtmosphere`, `SetMapMarker`, `RemoveMapMarker`, plus `RoomSpec` `Atmosphere`/`Liquids`/`Lights`/`Emitters`/`Zones`/`MapColor`/`MapIcon`, custom-mesh `RoomInteractableSpec`, and `ZoneObserverPlugin`. Level-5 calls: `SpawnActor`, `UpdateActor`, `RemoveActor`, `PlayVFX`, `ShowFloatingText`, `SetGroundMarker`, `RemoveGroundMarker`, `ClearGroundMarkers`, `SetHeroHotbar`, `SetHeroPose`, `SetHeroControlLock`, `CombatInputPlugin`, and `PluginManifest.DisableLegacyCombat`. Level-6 calls: `SetMapConfig`, `SetMapRegion`, `RemoveMapRegion`, `SetMapRoute`, `RemoveMapRoute`, `MapInputPlugin`, enriched `MapMarkerSpec`, and unified action bar `HotbarSlotSpec` metadata. A plugin calling a newer hostcall on an older realm/client fails to load with an error naming the missing host function.
+- Result codes (`sdk.CodeToErr`): `-2` wrong role (`ErrWrongRole`), `-3` ABI memory, `-4` invalid argument (`ErrInvalidArg`), `-5` quota/backend, `-6` hero offline (`ErrHeroOffline`), `-7` not enough gold (`ErrNotEnoughGold`), `-8` not found (`ErrNotFound`), `-9` not enough items (`ErrNotEnoughItems`), `-10` in battle (`ErrInBattle`).
+- **Unit tests with `go test`**: import `github.com/mmoboy/hero-armory-sdk/sdktest` and call `h := sdktest.Install(t)`. It records overlays, HUD actions, notices, packets, chat, spawns, dynamic props, teleports, and given/taken items, keeps KV/Prefs and hero inventories in memory with the real limits, and models online/offline/in-battle heroes (`h.SetOnline`, `h.SetHeroItem`, `h.SetInBattle`). Helpers: `h.NoticesFor`, `h.ChatsFor`, `sdktest.PacketsFor[T]`, `h.OverlayByID`, `h.FindNode`, `h.FindNodeIn`, `h.OverlayText`, `h.Fail["server_kv_set"] = sdk.CodeQuotaOrBackend`.
 
 ## 5. Hard Limits (`manifest.go` / Host VM)
 
@@ -246,7 +265,31 @@ Embed `sdk.BaseClientPlugin` and implement:
 
 ---
 
-## 6. Deploying to a Hero Armory Realm
+## 6. Testing Locally & Deploying to a Hero Armory Realm
+
+### Fast Local Sandbox Mode (Recommended for Iteration)
+
+Test any plugin directory (containing `manifest.json`) in a single command without logging into an Auth server or clicking through Lobby/Character Select:
+
+```bash
+hero-armory --sandbox ./my-plugin
+hero-armory --sandbox ./my-plugin --sandbox-room 1,0
+hero-armory --sandbox ./my-plugin --sandbox-no-build
+hero-armory --sandbox-join --sandbox-hero "Tester2"
+```
+
+- `--sandbox <plugin-dir>`: shows a dedicated **Sandbox Boot Screen** (no login form, `F5` Retry on error), builds `dist/server_plugin.wasm` + `dist/client_plugin.gtpack`, boots an isolated loopback (`127.0.0.1`) sandbox realm, and drops an offline dev hero straight into the 3D world.
+- `--sandbox-no-build`: skips compilation and uses the existing artifacts in `dist/`.
+- `--sandbox-room <x,y>`: spawns directly in room `(x, y)` if registered.
+- `--sandbox-join`: launches a 2nd+ client straight into the currently running local loopback sandbox server for local multiplayer plugin testing (no server spawn, no rebuild).
+- `--sandbox-hero <name>`: optional dev hero display name (auto-generates a unique name when `--sandbox-join` is used so multiple local clients never collide).
+
+In sandbox mode (CLI `--sandbox`, `--sandbox-join`, and Plugin Studio **Build & Run Sandbox**), the in-game **Sandbox Dev Bar** provides:
+- **Reload (`F5`)**: (host client) rebuilds the plugin, restarts the local sandbox realm, and reconnects back into the same room (surfacing build errors in the log drawer without crashing).
+- **Room Jump**: one-click selector/cycle across all rooms registered by the plugin.
+- **Logs**: live toggleable drawer streaming server + client `sdk.Log(...)` lines and WASM/build errors.
+
+### Deploying to a Realm
 
 Option A -- Drop into the realm data directory (auto-discovered on startup):
 

@@ -125,8 +125,45 @@ func abiServerRemoveMonsterSpawn(raw []byte) int32 { return call("server_remove_
 func abiServerGiveCurrency(raw []byte) int32       { return call("server_give_currency", raw) }
 func abiServerSendChat(raw []byte) int32           { return call("server_send_chat", raw) }
 func abiPatchOverlay(raw []byte) int32             { return call("ui_patch_overlay", raw) }
+func abiServerTakeItem(raw []byte) int32           { return call("server_take_item", raw) }
+func abiServerTeleportHero(raw []byte) int32       { return call("server_teleport_hero", raw) }
+func abiClearOverlayID(raw []byte) int32           { return call("ui_clear_overlay_id", raw) }
+func abiServerSpawnProp(raw []byte) int32          { return call("server_spawn_prop", raw) }
+func abiServerRemoveProp(raw []byte) int32         { return call("server_remove_prop", raw) }
+func abiServerSetRoomAtmosphere(raw []byte) int32  { return call("server_set_room_atmosphere", raw) }
+func abiServerSetMapMarker(raw []byte) int32       { return call("server_set_map_marker", raw) }
+func abiServerRemoveMapMarker(raw []byte) int32    { return call("server_remove_map_marker", raw) }
+func abiServerSpawnActor(raw []byte) int32         { return call("server_spawn_actor", raw) }
+func abiServerUpdateActor(raw []byte) int32        { return call("server_update_actor", raw) }
+func abiServerRemoveActor(raw []byte) int32        { return call("server_remove_actor", raw) }
+func abiServerPlayVFX(raw []byte) int32            { return call("server_play_vfx", raw) }
+func abiServerShowFloatingText(raw []byte) int32   { return call("server_show_floating_text", raw) }
+func abiServerSetGroundMarker(raw []byte) int32    { return call("server_set_ground_marker", raw) }
+func abiServerRemoveGroundMarker(raw []byte) int32 { return call("server_remove_ground_marker", raw) }
+func abiServerClearGroundMarkers(raw []byte) int32 { return call("server_clear_ground_markers", raw) }
+func abiServerSetHeroHotbar(raw []byte) int32      { return call("server_set_hero_hotbar", raw) }
+func abiServerSetHeroPose(raw []byte) int32        { return call("server_set_hero_pose", raw) }
+func abiServerSetHeroControlLock(raw []byte) int32 { return call("server_set_hero_control_lock", raw) }
+func abiServerSetMapConfig(raw []byte) int32       { return call("server_set_map_config", raw) }
+func abiServerSetMapRegion(raw []byte) int32       { return call("server_set_map_region", raw) }
+func abiServerRemoveMapRegion(raw []byte) int32    { return call("server_remove_map_region", raw) }
+func abiServerSetMapRoute(raw []byte) int32        { return call("server_set_map_route", raw) }
+func abiServerRemoveMapRoute(raw []byte) int32     { return call("server_remove_map_route", raw) }
 
 func abiServerGetHero(req []byte) ([]byte, bool, int32) { return callOut("server_get_hero", req) }
+func abiServerGetInventory(req []byte) ([]byte, int32) {
+	if testHost == nil {
+		return []byte("[]"), 0
+	}
+	code, out := testHost.HostCall("server_get_inventory", req)
+	if code < 0 {
+		return nil, code
+	}
+	if out == nil {
+		return []byte("[]"), 0
+	}
+	return out, 0
+}
 
 func abiPlayAudio(assetPath string, volMilli uint32) int32 {
 	raw, _ := json.Marshal(struct {

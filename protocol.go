@@ -260,6 +260,41 @@ type GiveItemCmd struct {
 	Quantity     int    `json:"quantity"`
 }
 
+// TakeItemCmd instructs the realm server to atomically consume items from one
+// online hero's bag (not equipped slots, API level 3+).
+type TakeItemCmd struct {
+	TargetHeroID string `json:"target_hero_id"`
+	ItemID       string `json:"item_id"`
+	Quantity     int    `json:"quantity"`
+}
+
+// TeleportHeroCmd moves an online hero to (RoomX, RoomY), landing at Pos when
+// UsePos is true or at the room's default SpawnPos otherwise (API level 3+).
+type TeleportHeroCmd struct {
+	TargetHeroID string     `json:"target_hero_id"`
+	RoomX        int        `json:"room_x"`
+	RoomY        int        `json:"room_y"`
+	Pos          [3]float32 `json:"pos,omitempty"`
+	UsePos       bool       `json:"use_pos,omitempty"`
+}
+
+// ClearOverlayCmd removes a single named client overlay panel (API level 3+).
+type ClearOverlayCmd struct {
+	PanelID string `json:"panel_id"`
+}
+
+// SpawnPropCmd places or updates a dynamic 3D world prop in a room (API level 3+).
+type SpawnPropCmd struct {
+	RoomX int          `json:"room_x"`
+	RoomY int          `json:"room_y"`
+	Prop  RoomPropSpec `json:"prop"`
+}
+
+// RemovePropCmd removes a plugin-spawned dynamic 3D world prop by ID (API level 3+).
+type RemovePropCmd struct {
+	ID string `json:"id"`
+}
+
 // GatherEvent notifies ServerPlugin (implementing WorldObserverPlugin) on harvest completion.
 type GatherEvent struct {
 	HeroID   string `json:"hero_id"`
@@ -388,6 +423,367 @@ type RoomInteractableSpec struct {
 	Kind        string  `json:"kind"`
 	Target      string  `json:"target,omitempty"`
 	Notice      string  `json:"notice,omitempty"`
+	ModelPath   string  `json:"model_path,omitempty"` // optional bundled .glb (API level 4+)
+	ModelID     string  `json:"model_id,omitempty"`   // optional CustomMeshSpec ID (API level 4+)
+	Scale       float32 `json:"scale,omitempty"`
+	Yaw         float32 `json:"yaw,omitempty"`
+}
+
+// RoomLiquidSpec defines a bounded animated liquid or hazard plane in a room (API level 4+).
+type RoomLiquidSpec struct {
+	ID                string     `json:"id,omitempty"`
+	Kind              string     `json:"kind"` // "water", "lava", "aether", "acid", "mist"
+	MinX              float32    `json:"min_x"`
+	MaxX              float32    `json:"max_x"`
+	MinZ              float32    `json:"min_z"`
+	MaxZ              float32    `json:"max_z"`
+	Y                 float32    `json:"y"`
+	Color             [4]float32 `json:"color,omitempty"`
+	Opacity           float32    `json:"opacity,omitempty"`            // 0..1 (0 = kind default)
+	WaveSpeed         float32    `json:"wave_speed,omitempty"`         // 0..5 (0 = kind default)
+	EmissiveIntensity float32    `json:"emissive_intensity,omitempty"` // 0..3
+}
+
+// RoomLightSpec defines a local point light inside a room (API level 4+).
+type RoomLightSpec struct {
+	ID         string     `json:"id,omitempty"`
+	X          float32    `json:"x"`
+	Y          float32    `json:"y"`
+	Z          float32    `json:"z"`
+	Color      [3]float32 `json:"color"`
+	Intensity  float32    `json:"intensity,omitempty"`   // 0..5 (default 1.0)
+	Range      float32    `json:"range,omitempty"`       // 1..30 (default 8.0)
+	PulseSpeed float32    `json:"pulse_speed,omitempty"` // 0..10 Hz (0 = steady)
+}
+
+// RoomEmitterSpec defines a bounded 3D ambient particle emitter in a room (API level 4+).
+type RoomEmitterSpec struct {
+	ID       string     `json:"id,omitempty"`
+	Kind     string     `json:"kind"` // "embers", "fireflies", "mist", "sparkles", "ash", "snow", "rain", "portal_swirl", "void"
+	X        float32    `json:"x"`
+	Y        float32    `json:"y"`
+	Z        float32    `json:"z"`
+	Spread   [3]float32 `json:"spread,omitempty"`   // box half-extents (0..24)
+	Color    [4]float32 `json:"color,omitempty"`    // RGBA tint
+	Rate     float32    `json:"rate,omitempty"`     // particles/sec (1..40)
+	Size     float32    `json:"size,omitempty"`     // particle scale (0.05..2.0)
+	Speed    float32    `json:"speed,omitempty"`    // drift speed (0..10)
+	Lifetime float32    `json:"lifetime,omitempty"` // seconds (0.2..8.0)
+}
+
+// RoomTriggerZoneSpec defines a walk-in trigger zone inside a room (API level 4+).
+type RoomTriggerZoneSpec struct {
+	ID        string     `json:"id"`
+	Shape     string     `json:"shape,omitempty"` // "circle" (default) or "rect"
+	X         float32    `json:"x,omitempty"`     // circle center X
+	Z         float32    `json:"z,omitempty"`     // circle center Z
+	Radius    float32    `json:"radius,omitempty"`
+	MinX      float32    `json:"min_x,omitempty"` // rect bounds
+	MaxX      float32    `json:"max_x,omitempty"`
+	MinZ      float32    `json:"min_z,omitempty"`
+	MaxZ      float32    `json:"max_z,omitempty"`
+	Label     string     `json:"label,omitempty"`
+	RingColor [4]float32 `json:"ring_color,omitempty"` // optional glowing ground ring/border
+}
+
+// RoomAtmosphereSpec customizes per-room sky, fog, sun, ambient tint, weather,
+// and optional extra point lights/emitters (API level 4+).
+type RoomAtmosphereSpec struct {
+	SkyZenith        [3]float32        `json:"sky_zenith,omitempty"`
+	SkyHorizon       [3]float32        `json:"sky_horizon,omitempty"`
+	FogColor         [3]float32        `json:"fog_color,omitempty"`
+	FogDensity       float32           `json:"fog_density,omitempty"` // 0..0.1
+	SunColor         [3]float32        `json:"sun_color,omitempty"`
+	SunIntensity     float32           `json:"sun_intensity,omitempty"` // 0..3
+	SunPitch         float32           `json:"sun_pitch,omitempty"`     // -89..89 deg
+	SunYaw           float32           `json:"sun_yaw,omitempty"`       // -180..180 deg
+	AmbientColor     [3]float32        `json:"ambient_color,omitempty"`
+	Weather          string            `json:"weather,omitempty"` // "", "none", "rain", "snow", "ash", "spores", "embers", "void", "starfall"
+	WeatherColor     [4]float32        `json:"weather_color,omitempty"`
+	WeatherIntensity float32           `json:"weather_intensity,omitempty"` // 0..1
+	Lights           []RoomLightSpec   `json:"lights,omitempty"`            // max MaxRoomLights
+	Emitters         []RoomEmitterSpec `json:"emitters,omitempty"`          // max MaxRoomEmitters
+}
+
+// SetRoomAtmosphereCmd overrides (or clears when Atmosphere == nil) a room's
+// live 3D atmosphere (API level 4+).
+type SetRoomAtmosphereCmd struct {
+	RoomX      int                 `json:"room_x"`
+	RoomY      int                 `json:"room_y"`
+	Atmosphere *RoomAtmosphereSpec `json:"atmosphere,omitempty"`
+}
+
+// ZoneEvent notifies ZoneObserverPlugin when a hero enters or exits a trigger zone (API level 4+).
+type ZoneEvent struct {
+	HeroID   string `json:"hero_id"`
+	HeroName string `json:"hero_name"`
+	ZoneID   string `json:"zone_id"`
+	RoomX    int    `json:"room_x"`
+	RoomY    int    `json:"room_y"`
+}
+
+// MapMarkerSpec places or updates a dynamic marker on the world map and minimap (API level 4+).
+type MapMarkerSpec struct {
+	ID        string     `json:"id"`
+	RoomX     int        `json:"room_x"`
+	RoomY     int        `json:"room_y"`
+	PosX      float32    `json:"pos_x,omitempty"`
+	PosZ      float32    `json:"pos_z,omitempty"`
+	Label     string     `json:"label,omitempty"`
+	Icon      string     `json:"icon,omitempty"`
+	Color     [4]float32 `json:"color,omitempty"`
+	Pulse     bool       `json:"pulse,omitempty"`
+	Category  string     `json:"category,omitempty"`  // "quest", "boss", "poi", "portal", "event" (API level 6+)
+	Tooltip   string     `json:"tooltip,omitempty"`   // hover description (API level 6+)
+	Radius    float32    `json:"radius,omitempty"`    // optional highlight radius (API level 6+)
+	Clickable bool       `json:"clickable,omitempty"` // fires OnMapMarkerClick when clicked (API level 6+)
+}
+
+// RemoveMapMarkerCmd removes a dynamic world-map marker by ID (API level 4+).
+type RemoveMapMarkerCmd struct {
+	ID string `json:"id"`
+}
+
+// MapConfigSpec customizes the realm's World Map title, palette, and interactions (API level 6+).
+type MapConfigSpec struct {
+	Title           string     `json:"title,omitempty"`
+	Subtitle        string     `json:"subtitle,omitempty"`
+	BgColor         [4]float32 `json:"bg_color,omitempty"`
+	GridColor       [4]float32 `json:"grid_color,omitempty"`
+	ShowCoords      bool       `json:"show_coords,omitempty"`
+	AllowFastTravel bool       `json:"allow_fast_travel,omitempty"`
+}
+
+// MapRegionSpec defines a shaded territory box and label on the World Map (API level 6+).
+type MapRegionSpec struct {
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Subtitle    string     `json:"subtitle,omitempty"`
+	DangerLevel int        `json:"danger_level,omitempty"`
+	MinRoomX    int        `json:"min_room_x"`
+	MaxRoomX    int        `json:"max_room_x"`
+	MinRoomY    int        `json:"min_room_y"`
+	MaxRoomY    int        `json:"max_room_y"`
+	FillColor   [4]float32 `json:"fill_color,omitempty"`
+	BorderColor [4]float32 `json:"border_color,omitempty"`
+	LabelColor  [3]float32 `json:"label_color,omitempty"`
+}
+
+// RemoveMapRegionCmd removes a World Map region by ID (API level 6+).
+type RemoveMapRegionCmd struct {
+	ID string `json:"id"`
+}
+
+// MapRouteSpec draws a connector line between two rooms on the World Map (API level 6+).
+type MapRouteSpec struct {
+	ID    string     `json:"id"`
+	FromX int        `json:"from_x"`
+	FromY int        `json:"from_y"`
+	ToX   int        `json:"to_x"`
+	ToY   int        `json:"to_y"`
+	Color [4]float32 `json:"color,omitempty"`
+	Style string     `json:"style,omitempty"` // "road", "portal", "leyline", "dashed"
+	Label string     `json:"label,omitempty"`
+}
+
+// RemoveMapRouteCmd removes a World Map route by ID (API level 6+).
+type RemoveMapRouteCmd struct {
+	ID string `json:"id"`
+}
+
+// MapRoomClickEvent notifies MapInputPlugin when a hero clicks a room tile on the World Map (API level 6+).
+type MapRoomClickEvent struct {
+	HeroID string `json:"hero_id"`
+	RoomX  int    `json:"room_x"`
+	RoomY  int    `json:"room_y"`
+	Button string `json:"button"` // "left", "right"
+}
+
+// MapMarkerClickEvent notifies MapInputPlugin when a hero clicks a clickable marker on the World Map (API level 6+).
+type MapMarkerClickEvent struct {
+	HeroID   string `json:"hero_id"`
+	MarkerID string `json:"marker_id"`
+	RoomX    int    `json:"room_x"`
+	RoomY    int    `json:"room_y"`
+	Button   string `json:"button"` // "left", "right"
+}
+
+// ActorStatusSpec represents one status badge displayed on a dynamic actor (API level 5+).
+type ActorStatusSpec struct {
+	ID     string     `json:"id"`
+	Label  string     `json:"label"`
+	Color  [3]float32 `json:"color,omitempty"`
+	Stacks int        `json:"stacks,omitempty"`
+}
+
+// ActorSpec spawns or replaces a dynamic 3D combat/world actor in a room (API level 5+).
+type ActorSpec struct {
+	ID         string            `json:"id"`
+	RoomX      int               `json:"room_x"`
+	RoomY      int               `json:"room_y"`
+	PosX       float32           `json:"pos_x"`
+	PosZ       float32           `json:"pos_z"`
+	Yaw        float32           `json:"yaw,omitempty"`
+	Name       string            `json:"name"`
+	Kind       string            `json:"kind,omitempty"`
+	Team       string            `json:"team,omitempty"` // "neutral", "ally", "enemy"
+	ModelPath  string            `json:"model_path,omitempty"`
+	ModelID    string            `json:"model_id,omitempty"`
+	BodyColor  [3]float32        `json:"body_color,omitempty"`
+	TrimColor  [3]float32        `json:"trim_color,omitempty"`
+	Scale      float32           `json:"scale,omitempty"`
+	HP         int               `json:"hp,omitempty"`
+	MaxHP      int               `json:"max_hp,omitempty"`
+	Shield     int               `json:"shield,omitempty"`
+	Pose       string            `json:"pose,omitempty"`
+	Statuses   []ActorStatusSpec `json:"statuses,omitempty"`
+	Targetable bool              `json:"targetable,omitempty"`
+}
+
+// ActorPatch partially updates an existing dynamic actor; nil fields are left unchanged (API level 5+).
+// Set MoveTo=true to smoothly interpolate PosX/PosZ on clients; set ReplaceStatuses=true to replace Statuses (including clearing with an empty slice).
+type ActorPatch struct {
+	ID              string            `json:"id"`
+	PosX            *float32          `json:"pos_x,omitempty"`
+	PosZ            *float32          `json:"pos_z,omitempty"`
+	Yaw             *float32          `json:"yaw,omitempty"`
+	MoveTo          bool              `json:"move_to,omitempty"`
+	Name            *string           `json:"name,omitempty"`
+	HP              *int              `json:"hp,omitempty"`
+	MaxHP           *int              `json:"max_hp,omitempty"`
+	Shield          *int              `json:"shield,omitempty"`
+	Pose            *string           `json:"pose,omitempty"`
+	Statuses        []ActorStatusSpec `json:"statuses,omitempty"`
+	ReplaceStatuses bool              `json:"replace_statuses,omitempty"`
+	Targetable      *bool             `json:"targetable,omitempty"`
+}
+
+// RemoveActorCmd removes a dynamic actor by ID (API level 5+).
+type RemoveActorCmd struct {
+	ID string `json:"id"`
+}
+
+// VFXSpec triggers a one-shot 3D visual effect in a room (API level 5+).
+type VFXSpec struct {
+	RoomX       int        `json:"room_x"`
+	RoomY       int        `json:"room_y"`
+	Kind        string     `json:"kind"` // "slash", "bolt", "nova", "heal", "shield", "buff", "debuff", "ring", "beam"
+	FromX       float32    `json:"from_x"`
+	FromY       float32    `json:"from_y,omitempty"`
+	FromZ       float32    `json:"from_z"`
+	ToX         float32    `json:"to_x,omitempty"`
+	ToY         float32    `json:"to_y,omitempty"`
+	ToZ         float32    `json:"to_z,omitempty"`
+	Radius      float32    `json:"radius,omitempty"`
+	Color       [4]float32 `json:"color,omitempty"`
+	DurationSec float32    `json:"duration_sec,omitempty"`
+}
+
+// FloatingTextSpec spawns rising world-space combat or status text in a room (API level 5+).
+type FloatingTextSpec struct {
+	RoomX    int        `json:"room_x"`
+	RoomY    int        `json:"room_y"`
+	PosX     float32    `json:"pos_x"`
+	PosY     float32    `json:"pos_y,omitempty"`
+	PosZ     float32    `json:"pos_z"`
+	Text     string     `json:"text"`
+	Color    [4]float32 `json:"color,omitempty"`
+	Scale    float32    `json:"scale,omitempty"`
+	Critical bool       `json:"critical,omitempty"`
+}
+
+// GroundMarkerSpec places or updates a 3D ground telegraph or tactical highlight (API level 5+).
+type GroundMarkerSpec struct {
+	ID          string     `json:"id"`
+	RoomX       int        `json:"room_x"`
+	RoomY       int        `json:"room_y"`
+	Shape       string     `json:"shape"` // "circle", "ring", "tile", "line"
+	PosX        float32    `json:"pos_x"`
+	PosZ        float32    `json:"pos_z"`
+	ToX         float32    `json:"to_x,omitempty"`
+	ToZ         float32    `json:"to_z,omitempty"`
+	Radius      float32    `json:"radius,omitempty"`
+	Color       [4]float32 `json:"color,omitempty"`
+	Pulse       bool       `json:"pulse,omitempty"`
+	OwnerHeroID string     `json:"owner_hero_id,omitempty"` // empty = room-wide, non-empty = private to hero
+}
+
+// RemoveGroundMarkerCmd removes one ground marker by ID (API level 5+).
+type RemoveGroundMarkerCmd struct {
+	ID string `json:"id"`
+}
+
+// ClearGroundMarkersCmd clears ground markers in a room, optionally scoped to one owner hero (API level 5+).
+type ClearGroundMarkersCmd struct {
+	RoomX       int    `json:"room_x"`
+	RoomY       int    `json:"room_y"`
+	OwnerHeroID string `json:"owner_hero_id,omitempty"`
+}
+
+// HotbarSlotSpec defines one slot (1..10, slot 10 = key 0) in a hero's unified action bar (API level 5+, extended in API level 6).
+type HotbarSlotSpec struct {
+	Slot        int        `json:"slot"`
+	ID          string     `json:"id"`
+	Label       string     `json:"label"`
+	IconName    string     `json:"icon_name,omitempty"`
+	CostText    string     `json:"cost_text,omitempty"`
+	Cooldown    int        `json:"cooldown,omitempty"`
+	Disabled    bool       `json:"disabled,omitempty"`
+	Active      bool       `json:"active,omitempty"`
+	Tooltip     string     `json:"tooltip,omitempty"`
+	Group       string     `json:"group,omitempty"`        // "spell", "item", "utility", "end_turn" (API level 6+)
+	KeyHint     string     `json:"key_hint,omitempty"`     // keybind label e.g. "1".."9", "0" (API level 6+)
+	Badge       string     `json:"badge,omitempty"`        // short badge e.g. "3 AP" (API level 6+)
+	Charges     int        `json:"charges,omitempty"`      // optional remaining charges (API level 6+)
+	AccentColor [3]float32 `json:"accent_color,omitempty"` // slot border/glow accent RGB (API level 6+)
+	Selected    bool       `json:"selected,omitempty"`     // highlight currently armed slot (API level 6+)
+}
+
+// SetHeroHotbarCmd sets or clears (when Slots is empty) one online hero's plugin hotbar (API level 5+).
+type SetHeroHotbarCmd struct {
+	TargetHeroID string           `json:"target_hero_id"`
+	Slots        []HotbarSlotSpec `json:"slots,omitempty"`
+}
+
+// SetHeroPoseCmd sets an online hero's animation pose and optional facing yaw (API level 5+).
+type SetHeroPoseCmd struct {
+	TargetHeroID string  `json:"target_hero_id"`
+	Pose         string  `json:"pose"`
+	Yaw          float32 `json:"yaw,omitempty"`
+}
+
+// SetHeroControlLockCmd locks or unlocks free overworld movement for one online hero (API level 5+).
+type SetHeroControlLockCmd struct {
+	TargetHeroID string `json:"target_hero_id"`
+	LockMove     bool   `json:"lock_move"`
+}
+
+// ActorClickEvent notifies CombatInputPlugin when a hero clicks a dynamic actor (API level 5+).
+type ActorClickEvent struct {
+	HeroID  string `json:"hero_id"`
+	RoomX   int    `json:"room_x"`
+	RoomY   int    `json:"room_y"`
+	ActorID string `json:"actor_id"`
+	Button  string `json:"button"` // "left", "right"
+}
+
+// GroundClickEvent notifies CombatInputPlugin when a hero clicks ground terrain (API level 5+).
+type GroundClickEvent struct {
+	HeroID string  `json:"hero_id"`
+	RoomX  int     `json:"room_x"`
+	RoomY  int     `json:"room_y"`
+	PosX   float32 `json:"pos_x"`
+	PosZ   float32 `json:"pos_z"`
+	Button string  `json:"button"` // "left", "right"
+}
+
+// HotbarPressEvent notifies CombatInputPlugin when a hero clicks or triggers a plugin hotbar slot (API level 5+).
+type HotbarPressEvent struct {
+	HeroID   string `json:"hero_id"`
+	RoomX    int    `json:"room_x"`
+	RoomY    int    `json:"room_y"`
+	Slot     int    `json:"slot"`
+	ActionID string `json:"action_id"`
 }
 
 // RoomPropSpec places a decorative or solid 3D prop (built-in kind, .glb, or CustomMeshSpec).
@@ -430,6 +826,13 @@ type RoomSpec struct {
 	Houses           []RoomHouseSpec        `json:"houses,omitempty"`
 	Interactables    []RoomInteractableSpec `json:"interactables,omitempty"`
 	Props            []RoomPropSpec         `json:"props,omitempty"`
+	MapColor         [3]float32             `json:"map_color,omitempty"`  // custom world-map/minimap tile tint (API level 4+)
+	MapIcon          string                 `json:"map_icon,omitempty"`   // custom atlas icon on world-map (API level 4+)
+	Atmosphere       *RoomAtmosphereSpec    `json:"atmosphere,omitempty"` // custom sky/fog/sun/weather/lights (API level 4+)
+	Liquids          []RoomLiquidSpec       `json:"liquids,omitempty"`    // bounded animated liquid planes (API level 4+)
+	Lights           []RoomLightSpec        `json:"lights,omitempty"`     // local point lights (API level 4+)
+	Emitters         []RoomEmitterSpec      `json:"emitters,omitempty"`   // 3D ambient particle emitters (API level 4+)
+	Zones            []RoomTriggerZoneSpec  `json:"zones,omitempty"`      // walk-in trigger zones (API level 4+)
 }
 
 // RoomCoordCmd addresses a single room coordinate for removal or targeting.

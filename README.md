@@ -85,16 +85,64 @@ Hero Armory separates client look presets from Realm-authoritative character cre
 - **Vanilla Extended (`CharCreateModeVanillaExtended`)**: Keep the built-in customizer and Saved Looks bar while offering Realm starter classes (such as `vanilla.SanctuaryStarterClasses()`), custom validation, starter gear/bag/gold/base stats, and `{hero_id}` KV initialization via `sdk.CharacterCreatePlugin`.
 - **Custom Plugin Screen (`CharCreateModePluginCustom`)**: Replace the creation controls via `sdk.CharacterCreateClientPlugin.OnEnterCharacterCreate(ctx)` using `sdk.SetOverlay`, drive the live 3D Sanctuary pedestal via `sdk.SetCharacterCreatePreview`, and finalize via `sdk.SubmitCharacterCreate`.
 
-## API Level 2
+## API Level 6
 
-`sdk.APILevel` is 2. New in this level: `RemoveMonsterSpawn`, `GiveGold` /
-`GiveXP`, `GetHero` (and `Level`/`XP`/`Gold`/`ClassID` on `HeroSnapshot`),
-plugin chat (`SendChatToHero`, `BroadcastChat`, optional
-`ChatCommandPlugin.OnChatCommand` to consume `!commands` before broadcast),
-`PatchOverlay` for in-place overlay updates, `ValidateOverlay`, and typed
-result errors (`ErrHeroOffline`, `ErrNotEnoughGold`, `ErrNotFound`).
-`GiveItemToHero` now reports offline heroes (`CodeHeroOffline`) instead of
-silently dropping the items. All changes are additive; v1 plugins run unchanged.
+`sdk.APILevel` is 6 (additive on top of `SDKVersion = 1`):
+- **Unified Action Bar (`HotbarSlotSpec`)**: additive `Group` (`"spell"|"item"|"utility"|"end_turn"`), `KeyHint`, `Badge`, `Charges`, `AccentColor`, `Selected` rendered directly inside the client's unified bottom action bar.
+- **Flexible World Map SDK (`RoleServer`)**:
+  - `SetMapConfig(MapConfigSpec)` (custom title, subtitle, bg/grid palette, coordinate labels, fast-travel toggle).
+  - `SetMapRegion(MapRegionSpec)` / `RemoveMapRegion(id)` (up to `MaxMapRegions = 16` shaded territory regions with danger level & labels).
+  - `SetMapRoute(MapRouteSpec)` / `RemoveMapRoute(id)` (up to `MaxMapRoutes = 32` route connectors: `"road"`, `"portal"`, `"leyline"`, `"dashed"`).
+  - Enriched `MapMarkerSpec` (`Category`, `Tooltip`, `Radius`, `Clickable`).
+  - Optional `MapInputPlugin` (`OnMapRoomClick`, `OnMapMarkerClick`).
+- **Tactical Battle HUD**: `tactical.Engine` streams `BattleHUDSnapshot` on `tactical.DefaultHUDChannel` (`5050`); client plugins mount/clear the top-center `tactical_hud` overlay in 1 line via `tactical.HandleHUDPacket(channel, data)`.
+
+## API Level 5
+
+`sdk.APILevel` is 5 (additive on top of `SDKVersion = 1`):
+- **Generic Combat & Encounter Primitives (`RoleServer`)**:
+  - Dynamic 3D actors with smooth interpolation, HP/shield bars, status badges, and click hit-testing: `SpawnActor`, `UpdateActor` (`ActorPatch` + `PtrFloat32`/`PtrInt`/`PtrString`/`PtrBool`), `RemoveActor` (max `MaxDynamicActors = 128`, `MaxDynamicActorsPerRoom = 32`).
+  - One-shot 3D VFX & rising floating text: `PlayVFX` (`slash`, `bolt`, `nova`, `heal`, `shield`, `buff`, `debuff`, `ring`, `beam`), `ShowFloatingText`.
+  - Room-wide or hero-private 3D ground markers/telegraphs: `SetGroundMarker` (`circle`, `ring`, `tile`, `line`), `RemoveGroundMarker`, `ClearGroundMarkers` (max `MaxGroundMarkers = 64` per room).
+  - Hero combat HUD & control: `SetHeroHotbar` (slots 1..10, slot 10 = key `0`, empty slice hides), `SetHeroPose`, `SetHeroControlLock`.
+  - Optional `CombatInputPlugin` callback interface: `OnActorClick`, `OnGroundClick`, `OnHotbarPress`.
+  - Declarative opt-out: `PluginManifest.DisableLegacyCombat` (`"disable_legacy_combat": true`) bypasses legacy overworld monster combat so the plugin owns 100% of combat rules.
+- **Turnkey Tactical Combat Package (`github.com/mmoboy/hero-armory-sdk/tactical`)**:
+  - Ready-to-use turn-based tactical combat engine built purely on API Level 5 primitives.
+  - 5 difficulty presets (`TierStory`, `TierNormal`, `TierVeteran`, `TierHeroic`, `TierMythic`) + `MobBalance` knobs (`HPMult`, `DamageMult`, `ShieldPct`, `APBonus`, `MPBonus`, `CritChance`, `CritMult`, `ArmorPct`, `RewardMult`, `AIProfile` `"basic"|"tactical"|"ruthless"`).
+  - 8 default player spells (`heavy_strike`, `arcane_bolt`, `starlight_nova`, `ember_lance`, `frost_bind`, `aegis_ward`, `mending_light`, `gale_rush`) + slot 10 `End Turn`, status effects (`burn`, `poison`, `chill`, `stun`, `aegis`), and 8 distinct monster templates across combat roles.
+
+## API Level 4
+
+`sdk.APILevel` is 4 (additive on top of `SDKVersion = 1`):
+- **Per-room atmosphere & live overrides**: `RoomSpec.Atmosphere` (`RoomAtmosphereSpec`: sky zenith/horizon, fog color/density, directional sun, ambient tint, weather, extra lights/emitters) plus `SetRoomAtmosphere` / `ClearRoomAtmosphere` for live event atmosphere shifts.
+- **Animated liquid planes, local point lights & 3D particle emitters**: `RoomSpec.Liquids` (`water`, `lava`, `aether`, `acid`, `mist`), `RoomSpec.Lights` (pulsing local point lights), and `RoomSpec.Emitters` (`embers`, `fireflies`, `mist`, `sparkles`, `ash`, `snow`, `rain`, `portal_swirl`, `void`).
+- **Walk-in trigger zones & custom-mesh interactables**: `RoomSpec.Zones` (`circle` / `rect` with optional glowing ground ring) + optional `ZoneObserverPlugin` (`OnZoneEnter`, `OnZoneExit`), and `ModelID`/`ModelPath`/`Scale`/`Yaw` on `RoomInteractableSpec`.
+- **World-map styling & dynamic markers**: `RoomSpec.MapColor` / `RoomSpec.MapIcon` and `SetMapMarker` / `RemoveMapMarker` for pulsing live-event beacons.
+
+Earlier API Level 3 & 2 additions remain unchanged: `GetHeroInventory`, `GetHeroItemCount`, `TakeItemFromHero`, `TeleportHero`, multiple named overlays (`ClearOverlayID`, `MaxOverlays = 4`, `"top_center"`/`"bottom_center"` anchors), `SpawnProp`/`RemoveProp`, `RemoveMonsterSpawn`, `GiveGold`/`GiveXP`, `GetHero`, plugin chat, `PatchOverlay`, `ValidateOverlay`, and `sdktest`. All changes are additive; v1-v3 plugins run unchanged.
+
+## Local Sandbox Mode (One-Command Edit-Test Loop)
+
+Launch any local plugin directory (containing `manifest.json`) directly in an offline loopback sandbox realm with zero login or lobby clicks:
+
+```bash
+hero-armory --sandbox ./my-plugin
+hero-armory --sandbox ./my-plugin --sandbox-room 1,0
+hero-armory --sandbox ./my-plugin --sandbox-no-build
+hero-armory --sandbox-join --sandbox-hero "Tester2"
+```
+
+- `--sandbox <plugin-dir>`: opens a dedicated **Sandbox Boot Screen** (no login form), compiles `server_plugin.wasm` and `client_plugin.gtpack`, starts a local loopback (`127.0.0.1`) sandbox realm server, and connects straight into the 3D world with an offline dev hero.
+- `--sandbox-no-build`: skips rebuilding `dist/` and launches directly with existing `dist/server_plugin.wasm` + `dist/client_plugin.gtpack`.
+- `--sandbox-room <x,y>`: optional starting room coordinates (for example `1,0`).
+- `--sandbox-join`: connects a 2nd (or 3rd) client straight into the currently running local loopback sandbox server for local multiplayer plugin testing without spawning a second server or rebuilding.
+- `--sandbox-hero <name>`: optional dev hero display name (defaults to an auto-generated unique name when using `--sandbox-join` so multiple clients never collide).
+
+While connected to a local sandbox realm (from `--sandbox`, `--sandbox-join`, or Plugin Studio's **Build & Run Sandbox**), an in-game **Sandbox Dev Bar** appears inside the world viewport:
+- **Reload (`F5`)**: (host client) rebuilds WASM + `.gtpack`, restarts the loopback realm, and reconnects back into your current room (showing build errors in the log drawer if compilation fails).
+- **Room Jump**: pick or cycle through any registered room in the realm to jump there in one click.
+- **Logs**: toggleable live drawer displaying server and client plugin `sdk.Log(...)` output and build/WASM diagnostics in real time.
 
 ## Testing Plugins
 

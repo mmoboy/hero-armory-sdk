@@ -140,6 +140,89 @@ func hostServerSendChat(ptr, size uint32) int32
 //go:wasmimport hero_armory host_ui_patch_overlay
 func hostUIPatchOverlay(ptr, size uint32) int32
 
+// API level 3 hostcalls.
+
+//go:wasmimport hero_armory host_server_take_item
+func hostServerTakeItem(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_get_inventory
+func hostServerGetInventory(reqPtr, reqLen, outPtr, outCap uint32) int32
+
+//go:wasmimport hero_armory host_server_teleport_hero
+func hostServerTeleportHero(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_ui_clear_overlay_id
+func hostUIClearOverlayID(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_spawn_prop
+func hostServerSpawnProp(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_prop
+func hostServerRemoveProp(ptr, size uint32) int32
+
+// API level 4 hostcalls.
+
+//go:wasmimport hero_armory host_server_set_room_atmosphere
+func hostServerSetRoomAtmosphere(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_map_marker
+func hostServerSetMapMarker(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_map_marker
+func hostServerRemoveMapMarker(ptr, size uint32) int32
+
+// API level 5 hostcalls.
+
+//go:wasmimport hero_armory host_server_spawn_actor
+func hostServerSpawnActor(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_update_actor
+func hostServerUpdateActor(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_actor
+func hostServerRemoveActor(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_play_vfx
+func hostServerPlayVFX(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_show_floating_text
+func hostServerShowFloatingText(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_ground_marker
+func hostServerSetGroundMarker(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_ground_marker
+func hostServerRemoveGroundMarker(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_clear_ground_markers
+func hostServerClearGroundMarkers(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_hero_hotbar
+func hostServerSetHeroHotbar(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_hero_pose
+func hostServerSetHeroPose(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_hero_control_lock
+func hostServerSetHeroControlLock(ptr, size uint32) int32
+
+// API level 6 hostcalls.
+
+//go:wasmimport hero_armory host_server_set_map_config
+func hostServerSetMapConfig(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_map_region
+func hostServerSetMapRegion(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_map_region
+func hostServerRemoveMapRegion(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_set_map_route
+func hostServerSetMapRoute(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_remove_map_route
+func hostServerRemoveMapRoute(ptr, size uint32) int32
+
 var (
 	allocMu  sync.Mutex
 	allocMap = make(map[uint32][]byte)
@@ -537,6 +620,183 @@ func abiPatchOverlay(raw []byte) int32 {
 	return res
 }
 
+func abiServerTakeItem(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerTakeItem(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerGetInventory(req []byte) ([]byte, int32) {
+	rp, rl := bytesPtrLen(req)
+	defer runtime.KeepAlive(req)
+	raw, _, code := callSnprintf(func(outPtr, outCap uint32) int32 {
+		return hostServerGetInventory(rp, rl, outPtr, outCap)
+	}, false, 64*1024)
+	return raw, code
+}
+
+func abiServerTeleportHero(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerTeleportHero(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiClearOverlayID(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostUIClearOverlayID(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSpawnProp(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSpawnProp(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveProp(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveProp(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetRoomAtmosphere(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetRoomAtmosphere(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetMapMarker(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetMapMarker(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveMapMarker(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveMapMarker(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSpawnActor(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSpawnActor(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerUpdateActor(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerUpdateActor(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveActor(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveActor(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerPlayVFX(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerPlayVFX(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerShowFloatingText(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerShowFloatingText(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetGroundMarker(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetGroundMarker(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveGroundMarker(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveGroundMarker(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerClearGroundMarkers(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerClearGroundMarkers(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetHeroHotbar(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetHeroHotbar(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetHeroPose(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetHeroPose(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetHeroControlLock(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetHeroControlLock(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetMapConfig(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetMapConfig(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetMapRegion(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetMapRegion(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveMapRegion(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveMapRegion(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerSetMapRoute(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSetMapRoute(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerRemoveMapRoute(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveMapRoute(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
 //go:wasmexport plugin_on_chat_command
 func pluginOnChatCommand(ptr, size uint32) int32 {
 	h, ok := activeServer.(ChatCommandPlugin)
@@ -734,6 +994,90 @@ func pluginOnInteract(ptr, size uint32) int32 {
 		return 1
 	}
 	return 0
+}
+
+//go:wasmexport plugin_on_zone_enter
+func pluginOnZoneEnter(ptr, size uint32) {
+	obs, ok := activeServer.(ZoneObserverPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev ZoneEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnZoneEnter(ev)
+	}
+}
+
+//go:wasmexport plugin_on_zone_exit
+func pluginOnZoneExit(ptr, size uint32) {
+	obs, ok := activeServer.(ZoneObserverPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev ZoneEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnZoneExit(ev)
+	}
+}
+
+//go:wasmexport plugin_on_actor_click
+func pluginOnActorClick(ptr, size uint32) {
+	obs, ok := activeServer.(CombatInputPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev ActorClickEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnActorClick(ev)
+	}
+}
+
+//go:wasmexport plugin_on_ground_click
+func pluginOnGroundClick(ptr, size uint32) {
+	obs, ok := activeServer.(CombatInputPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev GroundClickEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnGroundClick(ev)
+	}
+}
+
+//go:wasmexport plugin_on_hotbar_press
+func pluginOnHotbarPress(ptr, size uint32) {
+	obs, ok := activeServer.(CombatInputPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev HotbarPressEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnHotbarPress(ev)
+	}
+}
+
+//go:wasmexport plugin_on_map_room_click
+func pluginOnMapRoomClick(ptr, size uint32) {
+	obs, ok := activeServer.(MapInputPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev MapRoomClickEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnMapRoomClick(ev)
+	}
+}
+
+//go:wasmexport plugin_on_map_marker_click
+func pluginOnMapMarkerClick(ptr, size uint32) {
+	obs, ok := activeServer.(MapInputPlugin)
+	if !ok || obs == nil {
+		return
+	}
+	var ev MapMarkerClickEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) == nil {
+		obs.OnMapMarkerClick(ev)
+	}
 }
 
 //go:wasmexport plugin_on_enter_char_create

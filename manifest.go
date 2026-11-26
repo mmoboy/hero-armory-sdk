@@ -13,9 +13,27 @@ const (
 	// APILevel is the additive host API revision this SDK targets. Level 2
 	// added RemoveMonsterSpawn, GiveGold/GiveXP, GetHero, plugin chat
 	// (SendChatToHero/BroadcastChat/ChatCommandPlugin), and PatchOverlay.
-	// A plugin calling a level-2 function on an older host fails to load with
+	// Level 3 added Hero inventory inspection/consumption (GetHeroInventory,
+	// GetHeroItemCount, TakeItemFromHero), TeleportHero, multiple named client
+	// overlays (ClearOverlayID + top_center/bottom_center anchors), and dynamic
+	// 3D world props (SpawnProp, RemoveProp).
+	// Level 4 added bespoke map & atmosphere customization: RoomAtmosphereSpec,
+	// SetRoomAtmosphere/ClearRoomAtmosphere, RoomLiquidSpec, RoomLightSpec,
+	// RoomEmitterSpec, RoomTriggerZoneSpec + ZoneObserverPlugin, custom-mesh
+	// RoomInteractableSpec, RoomSpec MapColor/MapIcon, and dynamic world-map
+	// markers (SetMapMarker/RemoveMapMarker).
+	// Level 5 added generic combat primitives: dynamic actors (SpawnActor,
+	// UpdateActor, RemoveActor), PlayVFX, ShowFloatingText, GroundMarkers,
+	// SetHeroHotbar, SetHeroPose, SetHeroControlLock, CombatInputPlugin
+	// (OnActorClick, OnGroundClick, OnHotbarPress), and
+	// PluginManifest.DisableLegacyCombat.
+	// Level 6 added unified action bar slot metadata (Group, KeyHint, Badge,
+	// Charges, AccentColor, Selected) and flexible world map customization
+	// (SetMapConfig, SetMapRegion, RemoveMapRegion, SetMapRoute,
+	// RemoveMapRoute, enriched MapMarkerSpec, and MapInputPlugin).
+	// A plugin calling a newer hostcall on an older host fails to load with
 	// an error naming the missing host function.
-	APILevel = 2
+	APILevel = 6
 
 	MaxArchiveBytes   = 16 << 20 // 16 MiB compressed .gtpack max
 	MaxExtractedBytes = 32 << 20 // 32 MiB extracted contents max
@@ -24,11 +42,27 @@ const (
 	MaxUISpecBytes    = 128 * 1024
 	MaxUINodes        = 128
 	MaxUIDepth        = 8
+	MaxOverlays       = 4
 	MaxHUDActions     = 6
 	MaxHUDBadgeLen    = 6
 	MaxChatTextLen    = 240
 	MaxStringLen      = 512
 	ChunkSizeBytes    = 64 * 1024
+
+	MaxDynamicProps         = 256
+	MaxDynamicPropsPerRoom  = 32
+	MaxRoomLiquids          = 8
+	MaxRoomLights           = 8
+	MaxRoomEmitters         = 12
+	MaxRoomZones            = 16
+	MaxMapMarkers           = 64
+	MaxMapRegions           = 16
+	MaxMapRoutes            = 32
+	MaxDynamicActors        = 128
+	MaxDynamicActorsPerRoom = 32
+	MaxActorStatuses        = 8
+	MaxGroundMarkers        = 64
+	MaxHotbarSlots          = 10
 
 	MaxKVKeyLen       = 128
 	MaxKVValueBytes   = 64 * 1024
@@ -66,6 +100,7 @@ type PluginManifest struct {
 	Icon                   string   `json:"icon,omitempty"`
 	Permissions            []string `json:"permissions,omitempty"`
 	Required               bool     `json:"required"`
+	DisableLegacyCombat    bool     `json:"disable_legacy_combat,omitempty"`
 }
 
 // ValidateManifest validates and normalizes a PluginManifest.
