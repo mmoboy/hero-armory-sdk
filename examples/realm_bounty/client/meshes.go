@@ -20,6 +20,8 @@ func (b *meshBuilder) addTri(p0, p1, p2 [3]float32, c0, c1, c2 [4]float32) {
 	b.indices = append(b.indices, base, base+1, base+2)
 }
 
+// Triangles are wound counter-clockwise seen from outside (the SDK front-face
+// convention); meshes_test.go checks every helper.
 func (b *meshBuilder) addDiamondSpire(baseCenter [3]float32, tiltX, tiltZ, radius, height float32, sides int, colBase, colMid, colTip [4]float32) {
 	if sides < 4 {
 		sides = 4
@@ -43,8 +45,8 @@ func (b *meshBuilder) addDiamondSpire(baseCenter [3]float32, tiltX, tiltZ, radiu
 	}
 	for i := 0; i < sides; i++ {
 		ni := (i + 1) % sides
-		b.addTri(baseCenter, ring[ni], ring[i], colBase, colMid, colMid)
-		b.addTri(ring[i], ring[ni], tip, colMid, colMid, colTip)
+		b.addTri(baseCenter, ring[i], ring[ni], colBase, colMid, colMid)
+		b.addTri(ring[ni], ring[i], tip, colMid, colMid, colTip)
 	}
 }
 
@@ -66,10 +68,10 @@ func (b *meshBuilder) addFacetedMound(cx, cy, cz, rx, ry, rz float32, sides int,
 	botCenter := [3]float32{cx, cy, cz}
 	for i := 0; i < sides; i++ {
 		ni := (i + 1) % sides
-		b.addTri(lower[i], lower[ni], upper[ni], colRim, colRim, colTop)
-		b.addTri(lower[i], upper[ni], upper[i], colRim, colTop, colTop)
-		b.addTri(upper[i], upper[ni], capCenter, colTop, colTop, colTop)
-		b.addTri(botCenter, lower[ni], lower[i], colRim, colRim, colRim)
+		b.addTri(lower[i], upper[ni], lower[ni], colRim, colTop, colRim)
+		b.addTri(lower[i], upper[i], upper[ni], colRim, colTop, colTop)
+		b.addTri(upper[ni], upper[i], capCenter, colTop, colTop, colTop)
+		b.addTri(botCenter, lower[i], lower[ni], colRim, colRim, colRim)
 	}
 }
 

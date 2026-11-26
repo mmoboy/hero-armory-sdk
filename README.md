@@ -85,6 +85,34 @@ Hero Armory separates client look presets from Realm-authoritative character cre
 - **Vanilla Extended (`CharCreateModeVanillaExtended`)**: Keep the built-in customizer and Saved Looks bar while offering Realm starter classes (such as `vanilla.SanctuaryStarterClasses()`), custom validation, starter gear/bag/gold/base stats, and `{hero_id}` KV initialization via `sdk.CharacterCreatePlugin`.
 - **Custom Plugin Screen (`CharCreateModePluginCustom`)**: Replace the creation controls via `sdk.CharacterCreateClientPlugin.OnEnterCharacterCreate(ctx)` using `sdk.SetOverlay`, drive the live 3D Sanctuary pedestal via `sdk.SetCharacterCreatePreview`, and finalize via `sdk.SubmitCharacterCreate`.
 
+## API Level 2
+
+`sdk.APILevel` is 2. New in this level: `RemoveMonsterSpawn`, `GiveGold` /
+`GiveXP`, `GetHero` (and `Level`/`XP`/`Gold`/`ClassID` on `HeroSnapshot`),
+plugin chat (`SendChatToHero`, `BroadcastChat`, optional
+`ChatCommandPlugin.OnChatCommand` to consume `!commands` before broadcast),
+`PatchOverlay` for in-place overlay updates, `ValidateOverlay`, and typed
+result errors (`ErrHeroOffline`, `ErrNotEnoughGold`, `ErrNotFound`).
+`GiveItemToHero` now reports offline heroes (`CodeHeroOffline`) instead of
+silently dropping the items. All changes are additive; v1 plugins run unchanged.
+
+## Testing Plugins
+
+```go
+import "github.com/mmoboy/hero-armory-sdk/sdktest"
+
+func TestWelcome(t *testing.T) {
+	h := sdktest.Install(t)
+	h.SetOnline(sdk.HeroSnapshot{ID: "h1", Name: "Ayla"})
+	p := newServer()
+	p.Init()
+	p.OnPlayerJoin(h.Hero("h1"))
+	if len(h.NoticesFor("h1")) == 0 {
+		t.Fatal("expected a welcome notice")
+	}
+}
+```
+
 ## Examples
 
 - `examples/minimal_realm`: Bare-bones empty-shell world example (`server_plugin.wasm` only).

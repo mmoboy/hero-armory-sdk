@@ -32,8 +32,8 @@ When the user asks you to create a plugin (for example: `"Create a Hero Armory p
    - Never omit `-buildmode=c-shared` (host ABI exports depend on it).
    - Register the plugin in `func init()` via `sdk.RegisterServer(...)` or `sdk.RegisterClient(...)`, and keep `func main() {}` empty.
 3. **Strict VM Role Separation**:
-   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, and `KV*`, plus optional lifecycle hooks `OnBeginCharacterCreate` and `OnFinalizeCharacterCreate`.
-   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `ClearOverlay`, `SetCharacterCreatePreview`, `SubmitCharacterCreate`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`, plus optional `OnEnterCharacterCreate`.
+   - `RoleServer` (`server_plugin.wasm`): Runs on the Realm Server. Can call `RegisterRoom`, `RemoveRoom`, `SetSpawnRoom`, `RegisterNPC`, `SetHeroLoadout`, `SetStarterConfig`, `RegisterPlayerSkill`, `RegisterJob`, `RegisterMonster`, `SpawnMonster`, `RemoveMonsterSpawn`, `RegisterItem`, `SpawnGatherNode`, `RegisterRecipe`, `GiveItemToHero`, `GiveGold`, `GiveXP`, `GetHero`, `ConfigureCodex`, `RegisterCodexEntry`, `SendToHero`, `SendJSONToHero`, `BroadcastPacket`, `BroadcastJSON`, `BroadcastRoomPacket`, `SendNoticeToHero`, `BroadcastNotice`, `SendChatToHero`, `BroadcastChat`, and `KV*`, plus optional lifecycle hooks `OnBeginCharacterCreate` and `OnFinalizeCharacterCreate`.
+   - `RoleClient` (`client_plugin.gtpack` -> `client.wasm`): Runs on the native game client. Can call `SendToServer`, `SendJSONToServer`, `SetHUDActions`, `SetOverlay`, `PatchOverlay`, `ClearOverlay`, `SetCharacterCreatePreview`, `SubmitCharacterCreate`, `OpenCodex`, `PlayAudio`, `RegisterCustomMesh`, and `Pref*`, plus optional `OnEnterCharacterCreate`.
    - `sdk.Log(msg)` works in both roles.
    - Calling a hostcall from the wrong VM role returns `sdk.ErrWrongRole` / negative error code.
 4. **Content IDs & Naming Convention**:
@@ -153,6 +153,9 @@ Embed `sdk.BaseServerPlugin` and implement only the hooks needed:
 - Optional `sdk.WorldObserverPlugin`: `OnGather(ev sdk.GatherEvent)` and `OnCraft(ev sdk.CraftEvent)`
 - Optional `sdk.NPCPlugin`: `OnNPCInteract(ev sdk.NPCInteractEvent) (sdk.NPCDialogResult, bool)`
 - Optional `sdk.InteractPlugin`: `OnInteract(ev sdk.InteractEvent) bool`
+- Optional `sdk.ChatCommandPlugin` (API level 2): `OnChatCommand(ev sdk.ChatEvent) bool` runs BEFORE a local/server/commerce/party message is broadcast. Return true to consume it: nobody else sees it, the sender sees only their own line, and `OnChat` is not called. Reply with `sdk.SendChatToHero` or `sdk.SendNoticeToHero`.
+
+`BattleEndEvent.MonsterID` is the `MonsterSpawnSpec.ID` of the engaged pack. `time.Now()` works inside the sandbox and returns the host wall clock.
 
 ### Server Hostcalls
 
@@ -176,7 +179,11 @@ Embed `sdk.BaseServerPlugin` and implement only the hooks needed:
   - `sdk.RegisterItem(sdk.ItemSpec{...})` (`ID`: `2-48` chars `[a-z0-9_-]`; `Kind`: `"equipment"`, `"material"`, `"consumable"`, `"portal_style"`; `Slot`: `"hat"`, `"amulet"`, `"chest"`, `"belt"`, `"gloves"`, `"ring"`, `"boots"`, `"weapon"`; `Rarity`: `"Common"`, `"Uncommon"`, `"Rare"`, `"Heroic"`, `"Mythic"`, `"Relic"`, `"Royal"`; optional `VisualPreset`, `ModelPath`, `ModelID`, `Price`, `SellPrice`, `ShopHidden`, `ShopCategory`, `SetID`)
   - `sdk.SpawnGatherNode(sdk.GatherNodeSpec{...})` (`Job`: `"bucheron"`, `"mineur"`, `"herborist"`, `"fisherman"`, `"craftsman"`)
   - `sdk.RegisterRecipe(sdk.RecipeSpec{...})`
-  - `sdk.GiveItemToHero(heroID, itemID, quantity)`
+  - `sdk.GiveItemToHero(heroID, itemID, quantity)` (1..99; returns `sdk.CodeHeroOffline` (-6) for offline heroes, items are NOT queued)
+  - `sdk.GiveGold(heroID, amount)` (negative = charge, `sdk.ErrNotEnoughGold` if the balance is too low) / `sdk.GiveXP(heroID, amount)` (applies level-ups) -- API level 2, no host caps
+  - `sdk.RemoveMonsterSpawn(spawnID)` -- API level 2; an idle pack vanishes at once, a pack in battle when the battle ends
+  - `sdk.GetHero(heroID) (HeroSnapshot, found, err)` -- API level 2; `HeroSnapshot` now carries `Level`, `XP`, `Gold`, `ClassID`
+  - `sdk.SendChatToHero(heroID, text)` / `sdk.BroadcastChat(text)` -- API level 2; shown on the system channel tagged `[<plugin name>]`, max 240 ASCII chars
 - **Codex**:
   - `sdk.ConfigureCodex(sdk.CodexConfigSpec{...})`
   - `sdk.RegisterCodexEntry(sdk.CodexEntrySpec{...})` (`Category`: `"bestiary"`, `"resources"`, `"items"`, `"recipes"`, `"custom"`)
@@ -200,15 +207,17 @@ Embed `sdk.BaseClientPlugin` and implement:
 ### Client Hostcalls & Declarative UI Builders
 
 - `sdk.SendToServer(channel, payload)` / `sdk.SendJSONToServer(channel, v)`
-- `sdk.SetHUDActions([]sdk.HUDActionSpec{...})` (max 6 buttons; `Icon` = atlas icon name like `"star"` or bundle `.png` path)
+- `sdk.SetHUDActions([]sdk.HUDActionSpec{...})` (max 6 buttons; `Icon` = atlas icon name like `"star"` or bundle `.png` path; `Badge` max 6 chars, longer badges are cut)
 - `sdk.SetOverlay(sdk.UIPanelSpec{...})` / `sdk.ClearOverlay()`
   - `Anchor`: `"top_left"`, `"top_right"`, `"bottom_left"`, `"bottom_right"`, `"center"`
   - Node kinds: `"panel"`, `"col"`, `"row"`, `"label"`, `"button"`, `"input"`, `"icon"`, `"image"`, `"progress"`, `"scroll"`
-  - Button `Variant`: `"default"`, `"active"`, `"emerald"`, `"danger"`
+  - Button `Variant`: `"default"`, `"active"` (alias `"primary"`), `"emerald"` (alias `"success"`), `"danger"`
+  - `SetOverlay` rejects panels over the limits locally (-4); `sdk.ValidateOverlay(panel)` says why.
+  - `sdk.PatchOverlay(panelID, sdk.UINodePatch{ID, Text, Value, Progress, Color, Hidden})` (API level 2) updates nodes by `ID` in place, keeping focus, typed input, and scroll position. Use it for timers and counters; use `Value: sdk.PatchText("")` to clear an input after submit. `UINodeSpec.Hidden` renders a node hidden.
   - Helper constructors: `sdk.ColNode`, `sdk.RowNode`, `sdk.CardNode`, `sdk.LabelNode`, `sdk.ButtonNode`, `sdk.InputNode`, `sdk.ProgressNode`, `sdk.ImageNode`
 - `sdk.OpenCodex(query)`
 - `sdk.PlayAudio(assetPath, volume)` (`.wav` or `.ogg` inside `.gtpack`, volume `0.0..1.0`)
-- `sdk.RegisterCustomMesh(sdk.CustomMeshSpec{ID, Parts})` (`AnimMode`: `""`, `"spin_y"`, `"bob"`, `"orbit"`; `ActiveOnly`: hide gatherable part on cooldown)
+- `sdk.RegisterCustomMesh(sdk.CustomMeshSpec{ID, Parts})` (`AnimMode`: `""`, `"spin_y"`, `"bob"`, `"orbit"`; `ActiveOnly`: hide gatherable part on cooldown). Triangles are front-facing when wound **counter-clockwise seen from outside**; when `Normals` are omitted they are computed from that winding, so clockwise triangles light as if inside-out. Set `DoubleSided` only for thin surfaces.
 - **Local Client Prefs** (scoped per realm + plugin):
   - `sdk.PrefSet(key, val)` / `sdk.PrefSetJSON(key, v)`
   - `sdk.PrefGet(key)` / `sdk.PrefGetString(key, def)` / `sdk.PrefGetJSON(key, &dst)`
@@ -216,13 +225,20 @@ Embed `sdk.BaseClientPlugin` and implement:
 
 ---
 
+## 4b. API Levels, Error Codes, and Testing
+
+- `sdk.APILevel` = 2. Level-2 calls: `RemoveMonsterSpawn`, `GiveGold`, `GiveXP`, `GetHero`, `SendChatToHero`, `BroadcastChat`, `ChatCommandPlugin`, `PatchOverlay`. A plugin calling one on an older realm/client fails to load with an error naming the missing host function.
+- Result codes (`sdk.CodeToErr`): `-2` wrong role (`ErrWrongRole`), `-3` ABI memory, `-4` invalid argument (`ErrInvalidArg`), `-5` quota/backend, `-6` hero offline (`ErrHeroOffline`), `-7` not enough gold (`ErrNotEnoughGold`), `-8` not found (`ErrNotFound`).
+- **Unit tests with `go test`**: import `github.com/mmoboy/hero-armory-sdk/sdktest` and call `h := sdktest.Install(t)`. It records overlays, HUD actions, notices, packets, chat, spawns, and given items, keeps KV/Prefs in memory with the real limits, and models online/offline heroes (`h.SetOnline(sdk.HeroSnapshot{...})`). Helpers: `h.NoticesFor`, `h.ChatsFor`, `sdktest.PacketsFor[T]`, `h.FindNode`, `h.OverlayText`, `h.Fail["server_kv_set"] = sdk.CodeQuotaOrBackend`.
+
 ## 5. Hard Limits (`manifest.go` / Host VM)
 
 - `.gtpack` archive: `<= 16 MiB` compressed, `<= 32 MiB` extracted, `<= 256` files.
 - Allowed bundle extensions: `.wasm`, `.json`, `.png`, `.wav`, `.ogg`, `.glb`.
 - Packet payload: `<= 64 KiB` (`MaxPacketBytes`).
 - UI Overlay: `<= 128 KiB` JSON, `<= 128` nodes, `<= 8` depth, `<= 6` HUD actions.
-- Server KV: `<= 2,000` keys, `<= 4 MiB` total, key `<= 128` bytes, value `<= 64 KiB`.
+- Server KV: key `<= 128` bytes, value `<= 64 KiB` everywhere. Key count, total size, and write rate depend on the realm's hosting mode: **local and dedicated realms are unlimited** by default; **cloud realms** default to `<= 2,000` keys, `<= 4 MiB` total, and `<= 50` KVSet/KVDelete calls per second (over-limit calls return `ErrQuotaOrBackend`, -5). Realm operators can change each limit (`-plugin-kv-max-keys`, `-plugin-kv-max-bytes`, `-plugin-kv-writes-per-sec`, or the matching `HERO_ARMORY_PLUGIN_KV_*` env vars), so design for the cloud defaults if your plugin should run anywhere. `sdktest` enforces the cloud defaults.
+- Hero grants (`GiveGold`, `GiveXP`, `GiveItemToHero`) are never limited; they apply immediately. On cloud realms the hero's save to the database is batched (default every 2 s, and when the hero leaves; `-plugin-grant-save-interval-ms`).
 - Client Prefs: `<= 128` keys, `<= 128 KiB` total, key `<= 96` bytes, value `<= 8 KiB`.
 - Custom 3D Meshes & GLBs: `<= 32` meshes, `<= 16` parts/mesh, `<= 16,384` verts, `<= 32,768` tris, `<= 1 MiB` JSON; `.glb` assets `<= 50,000` verts and `<= 8` textures.
 - Rooms & NPCs: `RoomSpec <= 64 KiB` JSON (`MaxRoomSpecBytes`), `<= 256` terrain ops, `<= 128` props/obstacles, `<= 16` portals/houses, `<= 32` interactables, `<= 12` NPC options (`MaxNPCOptions`).

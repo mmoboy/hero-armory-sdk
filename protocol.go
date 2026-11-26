@@ -10,6 +10,10 @@ type HeroSnapshot struct {
 	RoomY          int     `json:"room_y"`
 	PosX           float32 `json:"pos_x"`
 	PosZ           float32 `json:"pos_z"`
+	Level          int     `json:"level,omitempty"`    // hero level (API level 2+)
+	XP             int64   `json:"xp,omitempty"`       // XP toward the next level (API level 2+)
+	Gold           int64   `json:"gold,omitempty"`     // gold balance (API level 2+)
+	ClassID        string  `json:"class_id,omitempty"` // starter class picked at creation (API level 2+)
 }
 
 // RoomEvent reports a hero stepping into a realm room.
@@ -121,7 +125,7 @@ type BattleEndEvent struct {
 	RoomX         int      `json:"room_x"`
 	RoomY         int      `json:"room_y"`
 	Won           bool     `json:"won"`
-	MonsterID     string   `json:"monster_id"`
+	MonsterID     string   `json:"monster_id"` // the MonsterSpawnSpec.ID of the engaged pack
 	ArchetypeID   string   `json:"archetype_id"`
 	DefeatedCount int      `json:"defeated_count"`
 	HeroIDs       []string `json:"hero_ids"`
@@ -221,6 +225,32 @@ type RecipeSpec struct {
 	OutputQty    int                `json:"output_qty,omitempty"`
 	Ingredients  []RecipeIngredient `json:"ingredients"`
 	Description  string             `json:"description,omitempty"`
+}
+
+// GiveCurrencyCmd instructs the realm server to change one online hero's gold
+// and/or grant XP. Gold may be negative (a charge); XP must be >= 0.
+type GiveCurrencyCmd struct {
+	TargetHeroID string `json:"target_hero_id"`
+	Gold         int64  `json:"gold,omitempty"`
+	XP           int64  `json:"xp,omitempty"`
+}
+
+// RemoveMonsterSpawnCmd removes a plugin-placed monster pack by MonsterSpawnSpec.ID.
+type RemoveMonsterSpawnCmd struct {
+	ID string `json:"id"`
+}
+
+// HostChatCmd sends a plugin chat line (shown on the "system" channel and
+// tagged with the plugin's name) to one hero or to every online hero.
+type HostChatCmd struct {
+	TargetHeroID string `json:"target_hero_id,omitempty"`
+	BroadcastAll bool   `json:"broadcast_all,omitempty"`
+	Text         string `json:"text"`
+}
+
+// HeroQueryCmd asks the realm server for one online hero's snapshot.
+type HeroQueryCmd struct {
+	HeroID string `json:"hero_id"`
 }
 
 // GiveItemCmd instructs the realm server to grant items into one hero's bag.

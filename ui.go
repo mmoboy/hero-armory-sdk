@@ -1,11 +1,16 @@
 package sdk
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 // HUDActionSpec registers one compact action button inside the World "HUD Actions" panel.
 type HUDActionSpec struct {
 	ID      string `json:"id"`
 	Tooltip string `json:"tooltip,omitempty"`
-	Icon    string `json:"icon"` // atlas icon name (e.g. "star") or bundle .png path
-	Badge   string `json:"badge,omitempty"`
+	Icon    string `json:"icon"`            // atlas icon name (e.g. "star") or bundle .png path
+	Badge   string `json:"badge,omitempty"` // at most MaxHUDBadgeLen chars; longer badges are cut
 	Active  bool   `json:"active,omitempty"`
 }
 
@@ -28,16 +33,34 @@ type UIPanelSpec struct {
 	Root        *UINodeSpec `json:"root,omitempty"`
 }
 
+// UINodePatch updates one existing overlay node (matched by UINodeSpec.ID)
+// without rebuilding the panel, so focus, scroll position, and typed input
+// survive. Nil fields are left unchanged.
+type UINodePatch struct {
+	ID       string      `json:"id"`
+	Text     *string     `json:"text,omitempty"`     // label/button text
+	Value    *string     `json:"value,omitempty"`    // input field value ("" clears it)
+	Progress *float32    `json:"progress,omitempty"` // progress bar fill 0..1
+	Color    *[4]float32 `json:"color,omitempty"`    // label text / progress fill color
+	Hidden   *bool       `json:"hidden,omitempty"`   // hide or show the node
+}
+
+// UIOverlayPatch is the payload of PatchOverlay.
+type UIOverlayPatch struct {
+	PanelID string        `json:"panel_id"`
+	Patches []UINodePatch `json:"patches"`
+}
+
 // UINodeSpec describes one whitelisted UI node rendered by the native client.
 type UINodeSpec struct {
 	Kind         string       `json:"kind"` // "panel", "col", "row", "label", "button", "input", "icon", "image", "progress", "scroll"
 	ID           string       `json:"id,omitempty"`
 	Text         string       `json:"text,omitempty"`
 	Placeholder  string       `json:"placeholder,omitempty"`
-	Variant      string       `json:"variant,omitempty"` // "default", "active", "emerald", "danger"
+	Variant      string       `json:"variant,omitempty"` // "default", "active" (alias "primary"), "emerald" (alias "success"), "danger"
 	Icon         string       `json:"icon,omitempty"`
 	AssetPath    string       `json:"asset_path,omitempty"`
-	Progress     float32      `json:"progress,omitempty"` // 0..1 for progress bars
+	Progress     float32      `json:"progress,omitempty"` // 0..1 for progress bars (bar height is at least 12 px)
 	Width        float32      `json:"width,omitempty"`
 	Height       float32      `json:"height,omitempty"`
 	PercentWidth float32      `json:"percent_width,omitempty"`
@@ -49,6 +72,7 @@ type UINodeSpec struct {
 	Color        [4]float32   `json:"color,omitempty"`
 	BorderColor  [4]float32   `json:"border_color,omitempty"`
 	Radius       float32      `json:"radius,omitempty"`
+	Hidden       bool         `json:"hidden,omitempty"` // rendered hidden; toggle with PatchOverlay (API level 2+)
 	Children     []UINodeSpec `json:"children,omitempty"`
 }
 
@@ -93,4 +117,48 @@ func ProgressNode(id string, progress float32, height float32, fillColor [4]floa
 // ImageNode creates a sandboxed PNG texture view loaded from inside the .gtpack archive.
 func ImageNode(id, assetPath string, width, height float32) UINodeSpec {
 	return UINodeSpec{Kind: "image", ID: id, AssetPath: assetPath, Width: width, Height: height}
+}
+
+// Pointer helpers for UINodePatch fields.
+func PatchText(s string) *string          { return &s }
+func PatchProgress(v float32) *float32    { return &v }
+func PatchColor(c [4]float32) *[4]float32 { return &c }
+func PatchHidden(hidden bool) *bool       { return &hidden }
+
+// ValidateOverlay checks panel against the host overlay limits (MaxUINodes,
+// MaxUIDepth, MaxUISpecBytes) before it is sent, so oversized overlays fail
+// with a readable error instead of being truncated by the host.
+func ValidateOverlay(panel UIPanelSpec) error {
+	raw, err := json.Marshal(panel)
+	if err != nil {
+		return err
+	}
+	if len(raw) > MaxUISpecBytes {
+		return fmt.Errorf("overlay %q is %d bytes (max %d)", panel.ID, len(raw), MaxUISpecBytes)
+	}
+	if panel.Root == nil {
+		return nil
+	}
+	nodes, depth := countUINodes(panel.Root, 0)
+	if nodes > MaxUINodes {
+		return fmt.Errorf("overlay %q has %d nodes (max %d)", panel.ID, nodes, MaxUINodes)
+	}
+	if depth > MaxUIDepth {
+		return fmt.Errorf("overlay %q is %d levels deep (max %d)", panel.ID, depth, MaxUIDepth)
+	}
+	return nil
+}
+
+// countUINodes returns the node count and the deepest level below n, counting
+// depth the way the client renderer does (root = 0).
+func countUINodes(n *UINodeSpec, depth int) (count, maxDepth int) {
+	count, maxDepth = 1, depth
+	for i := range n.Children {
+		c, d := countUINodes(&n.Children[i], depth+1)
+		count += c
+		if d > maxDepth {
+			maxDepth = d
+		}
+	}
+	return count, maxDepth
 }

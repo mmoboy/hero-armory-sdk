@@ -9,26 +9,54 @@ import (
 )
 
 var (
-	ErrWrongRole      = errors.New("plugin storage API not allowed for this VM role")
-	ErrInvalidArg     = errors.New("invalid plugin storage key, prefix, or value")
-	ErrQuotaOrBackend = errors.New("plugin storage quota/rate limit exceeded or backend error")
-	ErrMemoryABI      = errors.New("plugin storage ABI memory error")
+	ErrWrongRole      = errors.New("hostcall not allowed for this VM role")
+	ErrInvalidArg     = errors.New("invalid hostcall argument")
+	ErrQuotaOrBackend = errors.New("hostcall quota/rate limit exceeded or backend error")
+	ErrMemoryABI      = errors.New("hostcall ABI memory error")
+	ErrHeroOffline    = errors.New("target hero is not online")
+	ErrNotEnoughGold  = errors.New("target hero does not have enough gold")
+	ErrNotFound       = errors.New("target not found")
+)
+
+// Hostcall result codes shared by the host and the SDK (API level 2+ calls,
+// KV/Pref storage, and GiveItemToHero).
+const (
+	CodeOK             int32 = 0
+	CodeWrongRole      int32 = -2
+	CodeMemoryABI      int32 = -3
+	CodeInvalidArg     int32 = -4
+	CodeQuotaOrBackend int32 = -5
+	CodeHeroOffline    int32 = -6
+	CodeNotEnoughGold  int32 = -7
+	CodeNotFound       int32 = -8
 )
 
 func storageCodeToErr(code int32) error {
-	switch code {
-	case 0:
+	return CodeToErr(code)
+}
+
+// CodeToErr maps a hostcall result code to an SDK error (nil for >= 0).
+func CodeToErr(code int32) error {
+	if code >= 0 {
 		return nil
-	case -2:
+	}
+	switch code {
+	case CodeWrongRole:
 		return ErrWrongRole
-	case -3:
+	case CodeMemoryABI:
 		return ErrMemoryABI
-	case -4:
+	case CodeInvalidArg:
 		return ErrInvalidArg
-	case -5:
+	case CodeQuotaOrBackend:
 		return ErrQuotaOrBackend
+	case CodeHeroOffline:
+		return ErrHeroOffline
+	case CodeNotEnoughGold:
+		return ErrNotEnoughGold
+	case CodeNotFound:
+		return ErrNotFound
 	default:
-		return fmt.Errorf("plugin storage error code %d", code)
+		return fmt.Errorf("hostcall error code %d", code)
 	}
 }
 
@@ -94,6 +122,16 @@ type NPCPlugin interface {
 	OnNPCInteract(ev NPCInteractEvent) (NPCDialogResult, bool)
 }
 
+// ChatCommandPlugin is optionally implemented by ServerPlugin implementations
+// that handle chat commands (API level 2+). The host calls OnChatCommand
+// BEFORE a local/server/commerce/party message is broadcast; returning true
+// consumes the message: nobody else sees it and only the sender gets their
+// own line echoed back. Reply with SendChatToHero or SendNoticeToHero.
+// Messages that are not consumed are broadcast and then reach OnChat as usual.
+type ChatCommandPlugin interface {
+	OnChatCommand(ev ChatEvent) bool
+}
+
 // InteractPlugin is optionally implemented by ServerPlugin implementations
 // that handle room interactables (shrines, chests, altars, portals, etc.).
 type InteractPlugin interface {
@@ -152,6 +190,28 @@ func SendJSONToServer(channel uint16, v any) int32 {
 	return SendToServer(channel, raw)
 }
 
+// PatchOverlay updates individual nodes of the currently shown overlay panel
+// (matched by UINodeSpec.ID) without rebuilding it, keeping input focus,
+// typed text, and scroll position (RoleClient only, API level 2+). Patches
+// are also applied to the stored panel, so a later full re-render keeps them.
+// Returns ErrNotFound if panelID is not the active overlay.
+func PatchOverlay(panelID string, patches ...UINodePatch) error {
+	if len(patches) == 0 {
+		return nil
+	}
+	if len(patches) > MaxUINodes {
+		return ErrInvalidArg
+	}
+	raw, err := json.Marshal(UIOverlayPatch{PanelID: panelID, Patches: patches})
+	if err != nil {
+		return err
+	}
+	if len(raw) > MaxUISpecBytes {
+		return ErrInvalidArg
+	}
+	return CodeToErr(abiPatchOverlay(raw))
+}
+
 // SetHUDActions registers compact icon+badge action buttons inside "HUD Actions".
 func SetHUDActions(actions []HUDActionSpec) int32 {
 	if len(actions) > MaxHUDActions {
@@ -165,7 +225,12 @@ func SetHUDActions(actions []HUDActionSpec) int32 {
 }
 
 // SetOverlay mounts or updates a declarative UI panel inside WorldModeState.
+// Panels over the overlay limits are rejected locally (-4); call
+// ValidateOverlay to get the reason.
 func SetOverlay(panel UIPanelSpec) int32 {
+	if ValidateOverlay(panel) != nil {
+		return CodeInvalidArg
+	}
 	raw, err := json.Marshal(panel)
 	if err != nil {
 		return -1
@@ -342,7 +407,10 @@ func RegisterRecipe(spec RecipeSpec) int32 {
 	return abiServerRegisterRecipe(raw)
 }
 
-// GiveItemToHero grants quantity of itemID into an online hero's bag.
+// GiveItemToHero grants quantity (1..99) of itemID into an online hero's bag.
+// Returns 0 on success, CodeHeroOffline (-6) if the hero is not online (the
+// items are NOT queued), or another negative code on invalid input.
+// Hosts before API level 2 returned 0 for offline heroes.
 func GiveItemToHero(heroID, itemID string, quantity int) int32 {
 	raw, err := json.Marshal(GiveItemCmd{
 		TargetHeroID: heroID,
@@ -643,4 +711,98 @@ func SubmitCharacterCreate(sub CharacterCreateSubmission) error {
 		return ErrInvalidArg
 	}
 	return storageCodeToErr(abiSubmitCharCreate(raw))
+}
+
+// RemoveMonsterSpawn removes a plugin-placed monster pack by MonsterSpawnSpec.ID
+// (RoleServer only, API level 2+). An idle pack disappears immediately; a pack
+// that is in battle is removed when that battle ends, whatever the result.
+// Returns ErrNotFound for unknown IDs.
+func RemoveMonsterSpawn(id string) error {
+	if !IsValidContentID(id) {
+		return ErrInvalidArg
+	}
+	raw, err := json.Marshal(RemoveMonsterSpawnCmd{ID: id})
+	if err != nil {
+		return err
+	}
+	return CodeToErr(abiServerRemoveMonsterSpawn(raw))
+}
+
+// GiveGold adds amount gold to an online hero (RoleServer only, API level 2+).
+// A negative amount charges the hero and fails with ErrNotEnoughGold if the
+// balance is too low. Returns ErrHeroOffline if the hero is not online.
+func GiveGold(heroID string, amount int64) error {
+	return giveCurrency(GiveCurrencyCmd{TargetHeroID: heroID, Gold: amount})
+}
+
+// GiveXP grants amount (> 0) hero XP to an online hero, applying level-ups
+// (RoleServer only, API level 2+). Returns ErrHeroOffline if not online.
+func GiveXP(heroID string, amount int64) error {
+	if amount <= 0 {
+		return ErrInvalidArg
+	}
+	return giveCurrency(GiveCurrencyCmd{TargetHeroID: heroID, XP: amount})
+}
+
+func giveCurrency(cmd GiveCurrencyCmd) error {
+	if cmd.TargetHeroID == "" || cmd.XP < 0 || (cmd.Gold == 0 && cmd.XP == 0) {
+		return ErrInvalidArg
+	}
+	raw, err := json.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+	return CodeToErr(abiServerGiveCurrency(raw))
+}
+
+// GetHero returns the current snapshot (room, position, level, gold, class)
+// of an online hero (RoleServer only, API level 2+). found is false if the
+// hero is not online.
+func GetHero(heroID string) (hero HeroSnapshot, found bool, err error) {
+	if heroID == "" {
+		return HeroSnapshot{}, false, ErrInvalidArg
+	}
+	req, err := json.Marshal(HeroQueryCmd{HeroID: heroID})
+	if err != nil {
+		return HeroSnapshot{}, false, err
+	}
+	raw, ok, code := abiServerGetHero(req)
+	if code < 0 {
+		return HeroSnapshot{}, false, CodeToErr(code)
+	}
+	if !ok {
+		return HeroSnapshot{}, false, nil
+	}
+	if err := json.Unmarshal(raw, &hero); err != nil {
+		return HeroSnapshot{}, false, err
+	}
+	return hero, true, nil
+}
+
+// SendChatToHero shows a chat line from this plugin to one online hero, on
+// the "system" channel tagged with the plugin name (RoleServer only, API
+// level 2+). Text is ASCII-sanitized and capped at MaxChatTextLen.
+func SendChatToHero(heroID, text string) error {
+	if heroID == "" {
+		return ErrInvalidArg
+	}
+	return sendChat(HostChatCmd{TargetHeroID: heroID, Text: text})
+}
+
+// BroadcastChat shows a chat line from this plugin to every online hero
+// (RoleServer only, API level 2+).
+func BroadcastChat(text string) error {
+	return sendChat(HostChatCmd{BroadcastAll: true, Text: text})
+}
+
+func sendChat(cmd HostChatCmd) error {
+	cmd.Text = SanitizeASCII(cmd.Text, MaxChatTextLen)
+	if cmd.Text == "" {
+		return ErrInvalidArg
+	}
+	raw, err := json.Marshal(cmd)
+	if err != nil {
+		return err
+	}
+	return CodeToErr(abiServerSendChat(raw))
 }

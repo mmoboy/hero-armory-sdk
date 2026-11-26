@@ -10,6 +10,13 @@ const (
 	// SDKVersion is the ABI version implemented by both host and plugin modules.
 	SDKVersion = 1
 
+	// APILevel is the additive host API revision this SDK targets. Level 2
+	// added RemoveMonsterSpawn, GiveGold/GiveXP, GetHero, plugin chat
+	// (SendChatToHero/BroadcastChat/ChatCommandPlugin), and PatchOverlay.
+	// A plugin calling a level-2 function on an older host fails to load with
+	// an error naming the missing host function.
+	APILevel = 2
+
 	MaxArchiveBytes   = 16 << 20 // 16 MiB compressed .gtpack max
 	MaxExtractedBytes = 32 << 20 // 32 MiB extracted contents max
 	MaxEntries        = 256
@@ -18,13 +25,15 @@ const (
 	MaxUINodes        = 128
 	MaxUIDepth        = 8
 	MaxHUDActions     = 6
+	MaxHUDBadgeLen    = 6
+	MaxChatTextLen    = 240
 	MaxStringLen      = 512
 	ChunkSizeBytes    = 64 * 1024
 
 	MaxKVKeyLen       = 128
 	MaxKVValueBytes   = 64 * 1024
-	MaxKVKeysPerRealm = 2000
-	MaxKVTotalBytes   = 4 * 1024 * 1024
+	MaxKVKeysPerRealm = 2000            // cloud-realm default; local/dedicated realms are unlimited unless the operator sets a limit
+	MaxKVTotalBytes   = 4 * 1024 * 1024 // cloud-realm default; see MaxKVKeysPerRealm
 	MaxKVListLimit    = 256
 
 	MaxPrefKeyLen     = 96

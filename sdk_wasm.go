@@ -123,6 +123,23 @@ func hostServerSetCharCreateConfig(ptr, size uint32) int32
 //go:wasmimport hero_armory host_server_set_char_create_result
 func hostServerSetCharCreateResult(ptr, size uint32) int32
 
+// API level 2 hostcalls.
+
+//go:wasmimport hero_armory host_server_remove_monster_spawn
+func hostServerRemoveMonsterSpawn(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_give_currency
+func hostServerGiveCurrency(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_server_get_hero
+func hostServerGetHero(reqPtr, reqLen, outPtr, outCap uint32) int32
+
+//go:wasmimport hero_armory host_server_send_chat
+func hostServerSendChat(ptr, size uint32) int32
+
+//go:wasmimport hero_armory host_ui_patch_overlay
+func hostUIPatchOverlay(ptr, size uint32) int32
+
 var (
 	allocMu  sync.Mutex
 	allocMap = make(map[uint32][]byte)
@@ -482,6 +499,58 @@ func abiServerSetCharCreateResult(raw []byte) int32 {
 	res := hostServerSetCharCreateResult(ptr, sz)
 	runtime.KeepAlive(raw)
 	return res
+}
+
+func abiServerRemoveMonsterSpawn(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerRemoveMonsterSpawn(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerGiveCurrency(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerGiveCurrency(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiServerGetHero(req []byte) ([]byte, bool, int32) {
+	rp, rl := bytesPtrLen(req)
+	defer runtime.KeepAlive(req)
+	return callSnprintf(func(outPtr, outCap uint32) int32 {
+		return hostServerGetHero(rp, rl, outPtr, outCap)
+	}, true, 16*1024)
+}
+
+func abiServerSendChat(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostServerSendChat(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+func abiPatchOverlay(raw []byte) int32 {
+	ptr, sz := bytesPtrLen(raw)
+	res := hostUIPatchOverlay(ptr, sz)
+	runtime.KeepAlive(raw)
+	return res
+}
+
+//go:wasmexport plugin_on_chat_command
+func pluginOnChatCommand(ptr, size uint32) int32 {
+	h, ok := activeServer.(ChatCommandPlugin)
+	if !ok || h == nil {
+		return 0
+	}
+	var ev ChatEvent
+	if json.Unmarshal(readGuestSlice(ptr, size), &ev) != nil {
+		return 0
+	}
+	if h.OnChatCommand(ev) {
+		return 1
+	}
+	return 0
 }
 
 //go:wasmexport plugin_init
